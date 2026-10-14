@@ -1,0 +1,10 @@
+{
+    "The provided password was incorrect.": "A senha informada está incorreta.",
+    "The provided two factor authentication code was invalid.": "Código inválido. Confira o aplicativo autenticador.",
+    "The provided two factor recovery code was invalid.": "Código de recuperação inválido.",
+    "The provided password does not match your current password.": "A senha não confere com a atual.",
+    "Too Many Attempts.": "Muitas tentativas. Aguarde um pouco.",
+    "Unauthenticated.": "Entre novamente para continuar.",
+    "This action is unauthorized.": "Você não tem permissão para isso.",
+    "Password confirmation required.": "Confirme a senha para continuar."
+}
