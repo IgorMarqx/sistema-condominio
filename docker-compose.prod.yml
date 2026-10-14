@@ -1,0 +1,35 @@
+# Produção (EC2/Lightsail): app (php-fpm), nginx, fila (Horizon) e agendador.
+# O nginx serve ./public do host: rode `npm ci && npm run build` no host antes de subir.
+# O MySQL é o RDS ou o MySQL do host (DB_HOST no .env); o Redis pode ser o do host ou este.
+services:
+    app:
+        build: { context: ., dockerfile: docker/php/Dockerfile }
+        env_file: .env
+        volumes: [storage:/var/www/html/storage]
+        restart: unless-stopped
+    horizon:
+        build: { context: ., dockerfile: docker/php/Dockerfile }
+        env_file: .env
+        command: php artisan horizon
+        volumes: [storage:/var/www/html/storage]
+        restart: unless-stopped
+    agendador:
+        build: { context: ., dockerfile: docker/php/Dockerfile }
+        env_file: .env
+        command: php artisan schedule:work
+        volumes: [storage:/var/www/html/storage]
+        restart: unless-stopped
+    nginx:
+        image: nginx:1.27-alpine
+        ports: ['80:80']
+        volumes:
+            - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+            - ./public:/var/www/html/public:ro
+        depends_on: [app]
+        restart: unless-stopped
+    redis:
+        image: redis:7-alpine
+        restart: unless-stopped
+
+volumes:
+    storage:
