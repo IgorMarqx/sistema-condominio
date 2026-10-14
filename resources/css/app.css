@@ -1,0 +1,168 @@
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+
+@source '../views';
+
+/*
+ * Paleta dos mockups: azul-marinho do prédio, amarelo das ações principais e um fundo
+ * cinza-azulado. Tema único claro (os mockups não têm modo escuro).
+ */
+@theme {
+    --font-sans:
+        'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+    --color-marinho-950: #0b1734;
+    --color-marinho-900: #13254f;
+    --color-marinho-800: #1a3166;
+    --color-marinho-700: #233f80;
+    --color-marinho-600: #2f4f99;
+    --color-marinho-100: #e3e8f4;
+    --color-marinho-50: #eef1f8;
+
+    --color-ouro-500: #f5cf3c;
+    --color-ouro-400: #f8d856;
+    --color-ouro-300: #fbe38a;
+    --color-ouro-100: #fdf3cc;
+    --color-ouro-50: #fffaeb;
+
+    --color-fundo: #f2f4f8;
+    --color-linha: #e3e7ef;
+    --color-texto: #13254f;
+    --color-suave: #6b7590;
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --animate-entrar: entrar 0.25s ease-out;
+
+    @keyframes entrar {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}
+
+:root {
+    --background: #f2f4f8;
+    --foreground: #13254f;
+    --card: #ffffff;
+    --card-foreground: #13254f;
+    --popover: #ffffff;
+    --popover-foreground: #13254f;
+    --primary: #13254f;
+    --primary-foreground: #ffffff;
+    --secondary: #eef1f8;
+    --secondary-foreground: #13254f;
+    --muted: #eef1f8;
+    --muted-foreground: #6b7590;
+    --accent: #eef1f8;
+    --accent-foreground: #13254f;
+    --destructive: #dc2626;
+    --destructive-foreground: #dc2626;
+    --border: #e3e7ef;
+    --input: #dfe4ee;
+    --ring: #233f80;
+    --radius: 0.875rem;
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    html {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-fundo text-texto;
+        overflow-x: hidden;
+    }
+
+    /* Números de dinheiro alinham entre linhas. */
+    .tabular {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+}
+
+@layer components {
+    /* Topo azul-marinho com o brilho diagonal dos mockups. */
+    .topo-marinho {
+        background:
+            radial-gradient(
+                120% 90% at 100% 0%,
+                rgb(47 79 153 / 0.55) 0%,
+                transparent 60%
+            ),
+            linear-gradient(160deg, #1a3166 0%, #13254f 55%, #0b1734 100%);
+    }
+
+    /* Arcos decorativos do fundo da tela de entrada. */
+    .arcos {
+        background-image:
+            radial-gradient(
+                circle at 15% 105%,
+                transparent 38%,
+                rgb(255 255 255 / 0.06) 38.3%,
+                transparent 38.8%
+            ),
+            radial-gradient(
+                circle at 15% 105%,
+                transparent 52%,
+                rgb(255 255 255 / 0.05) 52.3%,
+                transparent 52.8%
+            ),
+            radial-gradient(
+                circle at 15% 105%,
+                transparent 66%,
+                rgb(255 255 255 / 0.04) 66.3%,
+                transparent 66.8%
+            );
+    }
+
+    .sem-barra {
+        scrollbar-width: none;
+    }
+
+    .sem-barra::-webkit-scrollbar {
+        display: none;
+    }
+
+    .area-segura-baixo {
+        padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+    }
+
+    .area-segura-topo {
+        padding-top: env(safe-area-inset-top);
+    }
+}
