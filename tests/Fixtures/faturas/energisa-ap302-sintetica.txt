@@ -1,0 +1,17 @@
+ENERGISA PARAÍBA - DISTRIBUIDORA DE ENERGIA S.A.
+CNPJ 09.095.183/0001-40
+NOTA FISCAL/CONTA DE ENERGIA ELÉTRICA ELETRÔNICA
+Data de emissão: 13/10/2026
+Nº da UC: 5/7654321-0
+Referência: OUT/2026
+Vencimento: 20/10/2026
+Total a pagar: R$ 186,40
+Leitura anterior: 12/09/2026
+Leitura atual: 12/10/2026
+Próxima leitura: 11/11/2026
+Consumo (kWh): 214
+ITENS DA FATURA
+Consumo em kWh 155,90
+Contrib. Ilum. Pública 12,10
+ICMS 18,40
+TOTAL A PAGAR 186,40
