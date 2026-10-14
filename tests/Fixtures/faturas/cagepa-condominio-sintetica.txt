@@ -1,0 +1,13 @@
+           CAGEPA - COMPANHIA DE ÁGUA E ESGOTOS DA PARAÍBA
+                    CNPJ 09.123.654/0001-87
+                     CONTA DE ÁGUA E ESGOTO
+
+    MATRÍCULA: 1234567-8        REFERÊNCIA: 10/2026        VENCIMENTO: 25/10/2026
+    DATA DA LEITURA ANTERIOR: 18/09/2026    DATA DA LEITURA ATUAL: 18/10/2026
+    DATA DE EMISSÃO: 19/10/2026
+    CONSUMO (m³): 28
+
+    DISCRIMINAÇÃO DOS SERVIÇOS                          VALOR (R$)
+    ÁGUA                                                  132,28
+    ESGOTO                                                105,82
+    TOTAL A PAGAR                                         238,10
