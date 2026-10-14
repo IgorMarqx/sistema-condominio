@@ -1,0 +1,31 @@
+                 ENERGISA PARAÍBA - DISTRIBUIDORA DE ENERGIA S.A.
+          CNPJ: 09.095.183/0001-40     INSCRIÇÃO ESTADUAL: 16.015.823-0
+    NOTA FISCAL/CONTA DE ENERGIA ELÉTRICA ELETRÔNICA - NF3e Nº 012.345.678 SÉRIE 001
+    DATA DE EMISSÃO: 21/10/2026
+
+    CONDOMINIO EDIFICIO EXEMPLO
+    RUA EXEMPLO, 100 - BAIRRO EXEMPLO
+    JOAO PESSOA - PB 58000-000
+
+    UNIDADE CONSUMIDORA       REF: MÊS/ANO       VENCIMENTO        TOTAL A PAGAR
+    5/1234567-8               10/2026            22/10/2026        R$ 412,57
+
+    LEITURA ANTERIOR    LEITURA ATUAL    Nº DE DIAS    PRÓXIMA LEITURA
+    21/09/2026          20/10/2026       29            20/11/2026
+
+    CONSUMO FATURADO (kWh)    512
+
+    ITENS DA FATURA                       QUANT.     PREÇO UNIT.     VALOR (R$)
+    Consumo em kWh                        512        0,62305         319,00
+    Adicional Bandeira Amarela            512        0,01885           9,65
+    Contrib. Ilum. Pública                                            23,45
+    PIS/PASEP                                                          5,12
+    COFINS                                                            23,60
+    ICMS                                                              31,75
+    TOTAL A PAGAR                                                    412,57
+
+    CHAVE DE ACESSO
+    2526 1009 0951 8300 0140 6600 1012 3456 7812 3456 7890
+
+    Linha digitável:
+    83640000004-1 12570033000-5 10012345678-2 02610221234-5
