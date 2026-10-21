@@ -92,6 +92,7 @@ export type Cobranca = {
     mes: string;
     mes_rotulo: string;
     mes_nome: string;
+    servico: string;
     valor: number;
     vencimento: string;
     vencida: boolean;
@@ -158,8 +159,3 @@ export type LeituraPrevista = {
     data: string;
     origem: string | null;
 };
-
-export type SituacaoRecebimento = Record<
-    ConcessionariaId,
-    { situacao: 'ativo' | 'manual' | 'pendente'; ultima: string | null }
->;
