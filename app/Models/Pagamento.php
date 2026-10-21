@@ -12,9 +12,9 @@ use Illuminate\Support\Carbon;
  * @property int $cobranca_id
  * @property int $valor_centavos
  * @property Carbon $pago_em
- * @property string $comprovante_s3
- * @property string $sha256
- * @property string $comprovante_nome
+ * @property string|null $comprovante_s3
+ * @property string|null $sha256
+ * @property string|null $comprovante_nome
  * @property string $status
  * @property string|null $motivo_recusa
  * @property int $enviado_por
