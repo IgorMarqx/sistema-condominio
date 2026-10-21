@@ -2,13 +2,11 @@ import { Link, router, usePage } from '@inertiajs/react';
 import {
     Building2,
     CalendarDays,
-    Calculator,
     ClipboardCheck,
     Ellipsis,
     FileText,
     Gauge,
     History,
-    Inbox,
     Lock,
     LogOut,
     ReceiptText,
@@ -56,12 +54,6 @@ const principais: ItemMenu[] = [
 
 const outros: ItemMenu[] = [
     {
-        rotulo: 'Rateio do mês',
-        href: '/gestao/rateio',
-        icone: Calculator,
-        prefixo: '/gestao/rateio',
-    },
-    {
         rotulo: 'Calendário de leituras',
         href: '/gestao/leituras',
         icone: CalendarDays,
@@ -84,12 +76,6 @@ const outros: ItemMenu[] = [
         href: '/gestao/medidores',
         icone: Building2,
         prefixo: '/gestao/medidores',
-    },
-    {
-        rotulo: 'Receber faturas',
-        href: '/gestao/receber-faturas',
-        icone: Inbox,
-        prefixo: '/gestao/receber-faturas',
     },
     {
         rotulo: 'Auditoria',
