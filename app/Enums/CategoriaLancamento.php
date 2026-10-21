@@ -10,6 +10,7 @@ enum CategoriaLancamento: string
     case Cobranca = 'cobranca';
     case PagamentoEnergisa = 'pagamento_energisa';
     case PagamentoCagepa = 'pagamento_cagepa';
+    case PagamentoInternet = 'pagamento_internet';
     case Manutencao = 'manutencao';
     case TaxasBancarias = 'taxas_bancarias';
     case Transferencia = 'transferencia';
@@ -25,6 +26,7 @@ enum CategoriaLancamento: string
             self::Cobranca => 'Cobrança do mês',
             self::PagamentoEnergisa => 'Pagamento Energisa',
             self::PagamentoCagepa => 'Pagamento Cagepa',
+            self::PagamentoInternet => 'Pagamento internet',
             self::Manutencao => 'Manutenção',
             self::TaxasBancarias => 'Taxas bancárias',
             self::Transferencia => 'Transferência',
@@ -42,7 +44,7 @@ enum CategoriaLancamento: string
     {
         return [
             self::RateioEnergia, self::RateioAgua, self::ContribuicaoMensal,
-            self::PagamentoEnergisa, self::PagamentoCagepa, self::Manutencao,
+            self::PagamentoEnergisa, self::PagamentoCagepa, self::PagamentoInternet, self::Manutencao,
             self::TaxasBancarias, self::Outros,
         ];
     }
