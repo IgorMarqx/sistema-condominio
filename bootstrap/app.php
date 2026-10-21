@@ -21,9 +21,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // O cookie do aparelho não guarda segredo e precisa ser lido antes do login.
         $middleware->encryptCookies(except: [Aparelho::COOKIE]);
 
-        // Webhooks de e-mail chegam de fora, autenticados por assinatura (SNS) ou token.
-        $middleware->validateCsrfTokens(except: ['webhooks/*']);
-
         $middleware->trustProxies(at: '*');
 
         $middleware->web(append: [
@@ -41,6 +38,6 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*', 'webhooks/*') || $request->expectsJson(),
+            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
     })->create();
