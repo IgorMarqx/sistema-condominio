@@ -72,6 +72,10 @@ class FortifyServiceProvider extends ServiceProvider
                     'nome' => $lembrado['nome'],
                 ] : null,
                 'entradaPorBiometria' => $unidade !== null && Aparelho::entradaPorBiometria($request),
+                'biometriaGestao' => ($gestao = Aparelho::entradaPorBiometriaGestao($request)) ? [
+                    'nome' => Str::before($gestao->nome, ' '),
+                    'papel' => $gestao->isAdmin() ? 'Síndico' : 'Conselho',
+                ] : null,
                 'status' => $request->session()->get('status'),
             ]);
         });
