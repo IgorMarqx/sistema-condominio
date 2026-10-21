@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Enums\CategoriaLancamento;
 use App\Enums\Concessionaria;
-use App\Models\CaixaEntrada;
 use App\Models\ContaCaixa;
 use App\Models\Fatura;
 use App\Models\Medidor;
@@ -17,8 +16,7 @@ use App\Services\Cobrancas\PagamentoService;
 use App\Services\Configuracoes;
 use App\Services\Faturas\FaturaService;
 use App\Services\Ingestao\DadosFatura;
-use App\Services\Ingestao\ProcessadorEmail;
-use App\Services\Ingestao\RecebedorEmail;
+use App\Services\Ingestao\ProcessadorPdf;
 use App\Services\Rateio\RateioService;
 use App\Support\Mes;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -29,8 +27,8 @@ use Illuminate\Support\Facades\Auth;
 use PragmaRX\Google2FA\Google2FA;
 
 /**
- * Cenário de demonstração com os números dos mockups: outubro em andamento, setembro fechado,
- * apto 302 com conta de luz chegando por e-mail e água acima da média. Só para ambiente local.
+ * Cenário de demonstração: outubro em andamento (água lançada no painel, luz importada para
+ * conferir), setembro fechado, apto 302 com água acima da média. Só para ambiente local.
  *
  * Acessos: apartamentos 101…403 e senha "password"; síndico sindico@condominio.local / "password"
  * com 2FA (o segredo é impresso no fim); conselho conselho@condominio.local / "password".
@@ -58,12 +56,13 @@ class DemoSeeder extends Seeder
 
         [$admin, $segredo] = $this->acessos();
 
-        $this->medidoresECaixas();
+        $this->medidores();
 
         // Histórico do condomínio: cinco meses confirmados e pagos.
         $energia = [5 => [38972, 476], 4 => [40110, 490], 3 => [39540, 483], 2 => [38972, 471], 1 => [42510, 521]];
         $agua = [5 => [21890, 24], 4 => [22340, 25], 3 => [21120, 23], 2 => [23050, 26], 1 => [22551, 25]];
         $faturasAnterior = [];
+        $rateios = app(RateioService::class);
 
         foreach ([5, 4, 3, 2, 1] as $atras) {
             $mes = $this->mes->copy()->subMonthsNoOverflow($atras);
@@ -71,14 +70,15 @@ class DemoSeeder extends Seeder
             $e = $this->faturaHistorica($this->medidor('condominio', Concessionaria::Energisa), $mes, $energia[$atras][0], $energia[$atras][1], 11, 22, $admin);
             $a = $this->faturaHistorica($this->medidor('condominio', Concessionaria::Cagepa), $mes, $agua[$atras][0], $agua[$atras][1], 18, 25, $admin);
 
+            // Meses antes do sistema (histórico importado): cada conta cobrada no próprio mês e paga fora do caixa.
+            $rateios->ratear($e, $admin)->cobrancas()->update(['status' => 'paga']);
+            $rateios->ratear($a, $admin)->cobrancas()->update(['status' => 'paga']);
+
             if ($atras === 1) {
                 $faturasAnterior = [$e, $a];
             } else {
-                // Meses antes do sistema (histórico importado): rateados, cobrados e pagos fora do caixa.
                 $e->update(['paga_em' => $mes->copy()->day(20)]);
                 $a->update(['paga_em' => $mes->copy()->day(22)]);
-                $rateioAntigo = app(RateioService::class)->gerarRascunho($mes->copy()->addMonthNoOverflow(), [$e->id, $a->id], $admin, $mes->copy()->addMonthNoOverflow()->day(15));
-                app(RateioService::class)->confirmar($rateioAntigo, $admin)->cobrancas()->update(['status' => 'paga']);
             }
         }
 
@@ -90,11 +90,9 @@ class DemoSeeder extends Seeder
         $caixa->lancar(ContaCaixa::corrente(), $anterior->copy(), 'entrada', 190324, CategoriaLancamento::Outros, 'Saldo inicial · conta corrente', $admin, $comprovante);
         $caixa->lancar(ContaCaixa::reserva(), $anterior->copy(), 'entrada', 150000, CategoriaLancamento::Outros, 'Saldo inicial · fundo de reserva', $admin, $this->arquivo('saldo-reserva.pdf', 'Extrato da reserva'));
 
-        // Rateio de outubro com as faturas de setembro.
+        // Outubro: a conta da Cagepa lançada no painel (valor e m³), já dividida entre as 12 unidades.
         Carbon::setTestNow($this->mes->copy()->addDays(1)->setTime(19, 30));
-        $rateios = app(RateioService::class);
-        $rateio = $rateios->gerarRascunho($this->mes, array_map(fn ($f) => $f->id, $faturasAnterior), $admin, $this->mes->copy()->addDays(14));
-        $rateio = $rateios->confirmar($rateio, $admin);
+        $rateio = $rateios->ratear(app(FaturaService::class)->lancarManual(Concessionaria::Cagepa, $this->mes, 23810, '28', $admin), $admin);
 
         // Fecha o mês anterior com o banco conferindo.
         Carbon::setTestNow($this->mes->copy()->addDay()->setTime(20, 0));
@@ -157,16 +155,12 @@ class DemoSeeder extends Seeder
         $aguaOut = $this->faturaHistorica($this->medidor('302', Concessionaria::Cagepa), $this->mes, 10940, 18, 8, 25, null);
         $faturas->marcarPaga($aguaOut, $this->mes->copy()->addDays(9));
 
-        // Hoje, 07:12: chega por e-mail a conta de luz do 302 e a do condomínio (para o síndico revisar).
+        // Hoje, 07:12: o 302 envia o PDF da conta de luz; 07:40, o síndico importa a da Energisa do
+        // condomínio, que fica para conferir (ao confirmar, vira a cobrança de energia de outubro).
         Carbon::setTestNow($this->local(7, 12));
-        Auth::forgetUser();
-        $this->receberPorEmail('ap302', $this->textoEnergisa('5/7654321-0', $this->mes, 18640, 214, 12, 20, 'APARTAMENTO 302'));
+        $this->importarPdf($this->medidor('302', Concessionaria::Energisa), $morador, $this->textoEnergisa('5/7654321-0', $this->mes, 18640, 214, 12, 20, 'APARTAMENTO 302'));
         Carbon::setTestNow($this->local(7, 40));
-        $this->receberPorEmail('condominio', $this->textoEnergisa('5/1234567-8', $this->mes, 41257, 512, 11, 22, 'CONDOMINIO EDIFICIO EXEMPLO'));
-
-        // Confirmação de encaminhamento do Gmail para o 302.
-        Carbon::setTestNow($this->local(8, 5));
-        $this->receberGmail('ap302');
+        $this->importarPdf($this->medidor('condominio', Concessionaria::Energisa), $admin, $this->textoEnergisa('5/1234567-8', $this->mes, 41257, 512, 11, 22, 'CONDOMINIO EDIFICIO EXEMPLO'));
 
         Carbon::setTestNow();
         Auth::forgetUser();
@@ -230,7 +224,7 @@ class DemoSeeder extends Seeder
         return [$admin, $segredo];
     }
 
-    private function medidoresECaixas(): void
+    private function medidores(): void
     {
         $u302 = Unidade::query()->where('numero', '302')->firstOrFail();
 
@@ -245,10 +239,6 @@ class DemoSeeder extends Seeder
                 ['dono_tipo' => $dono, 'unidade_id' => $unidade, 'descricao' => $descricao, 'ativo' => true],
             );
         }
-
-        $dominio = config('condominio.dominio_faturas');
-        CaixaEntrada::query()->where('dono_tipo', 'condominio')->update(['endereco' => 'condominio-7qk2@'.$dominio]);
-        CaixaEntrada::query()->firstOrCreate(['endereco' => 'ap302-x8vd@'.$dominio], ['dono_tipo' => 'unidade', 'unidade_id' => $u302->id, 'ativo' => true]);
     }
 
     private function medidor(string $dono, Concessionaria $concessionaria): Medidor
@@ -323,62 +313,11 @@ class DemoSeeder extends Seeder
         ]);
     }
 
-    private function receberPorEmail(string $prefixo, string $texto): void
+    private function importarPdf(Medidor $medidor, User $autor, string $texto): void
     {
+        Auth::setUser($autor);
         $pdf = Pdf::loadHTML('<pre style="font-family: DejaVu Sans Mono; font-size: 9px">'.e($texto).'</pre>')->output();
-        $para = CaixaEntrada::query()->where('endereco', 'like', $prefixo.'-%')->value('endereco');
-        $limite = 'demo'.bin2hex(random_bytes(6));
-
-        $eml = implode("\r\n", [
-            'Return-Path: <faturadigital@energisa.com.br>',
-            'Authentication-Results: mx.faturas; spf=pass smtp.mailfrom=energisa.com.br; dkim=pass header.d=energisa.com.br',
-            'From: Energisa <faturadigital@energisa.com.br>',
-            'To: '.$para,
-            'Subject: Sua fatura de energia chegou',
-            'Message-ID: <'.$limite.'@energisa.com.br>',
-            'Date: '.now()->toRfc2822String(),
-            'MIME-Version: 1.0',
-            'Content-Type: multipart/mixed; boundary="'.$limite.'"',
-            '',
-            '--'.$limite,
-            'Content-Type: text/plain; charset=UTF-8',
-            '',
-            'Olá! Sua fatura digital está em anexo.',
-            '--'.$limite,
-            'Content-Type: application/pdf; name="fatura.pdf"',
-            'Content-Disposition: attachment; filename="fatura.pdf"',
-            'Content-Transfer-Encoding: base64',
-            '',
-            chunk_split(base64_encode($pdf), 76, "\r\n"),
-            '--'.$limite.'--',
-            '',
-        ]);
-
-        $email = app(RecebedorEmail::class)->receber($eml, [$para]);
-        app(ProcessadorEmail::class)->processar($email);
-    }
-
-    private function receberGmail(string $prefixo): void
-    {
-        $para = CaixaEntrada::query()->where('endereco', 'like', $prefixo.'-%')->value('endereco');
-
-        $eml = implode("\r\n", [
-            'From: Equipe do Gmail <forwarding-noreply@google.com>',
-            'To: '.$para,
-            'Subject: (#482913057) Confirmação de encaminhamento do Gmail - Receber e-mails de maria@gmail.com',
-            'Message-ID: <gmail'.bin2hex(random_bytes(4)).'@google.com>',
-            'Date: '.now()->toRfc2822String(),
-            'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=UTF-8',
-            '',
-            'maria@gmail.com solicitou encaminhar e-mails automaticamente para o seu endereço.',
-            'Código de confirmação: 482913057',
-            'Para permitir, clique no link: https://mail-settings.google.com/mail/vf-%5BANGjdJ8demo%5D',
-            '',
-        ]);
-
-        $email = app(RecebedorEmail::class)->receber($eml, [$para]);
-        app(ProcessadorEmail::class)->processar($email);
+        app(ProcessadorPdf::class)->processar($pdf, 'fatura.pdf', $medidor->unidade, null, $medidor, [], $autor->id);
     }
 
     private function arquivo(string $nome, string $texto): UploadedFile
