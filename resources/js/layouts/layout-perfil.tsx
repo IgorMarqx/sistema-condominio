@@ -4,7 +4,7 @@ import LayoutGestao from './layout-gestao';
 import LayoutUnidade from './layout-unidade';
 
 /**
- * Telas comuns (avisos, conta, receber faturas): o layout segue o perfil de quem entrou.
+ * Telas comuns (avisos, conta): o layout segue o perfil de quem entrou.
  */
 export default function LayoutPerfil({ children }: LayoutProps) {
     const tipo = usePage().props.auth.user?.tipo;
