@@ -111,6 +111,15 @@ class FaturasController extends Controller
         return back()->with('sucesso', 'Pagamento lançado no caixa.');
     }
 
+    public function anexarPdf(Request $request, Fatura $fatura, FaturaService $faturas): RedirectResponse
+    {
+        $request->validate(['arquivo' => ['required', 'file', 'mimes:pdf', 'max:10240']], [], ['arquivo' => 'PDF da fatura']);
+
+        $faturas->anexarPdf($fatura, $request->file('arquivo'), $request->user());
+
+        return back()->with('sucesso', 'PDF anexado à fatura.');
+    }
+
     public function upload(CamposFaturaRequest $request, ProcessadorPdf $processador): RedirectResponse
     {
         $request->validate([
