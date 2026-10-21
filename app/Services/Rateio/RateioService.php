@@ -2,7 +2,6 @@
 
 namespace App\Services\Rateio;
 
-use App\Enums\Concessionaria;
 use App\Enums\StatusCobranca;
 use App\Enums\StatusCompetencia;
 use App\Enums\StatusFatura;
@@ -57,12 +56,12 @@ class RateioService
         $resto = 0;
         $recebem = [];
 
-        // Energia antes de água: a ordem decide para quem vai o centavo do resto.
-        $ordenadas = $faturas->sortBy(fn (Fatura $f) => [$f->medidor->concessionaria === Concessionaria::Energisa ? 0 : 1, $f->id])->values();
+        // Energia, água e internet nessa ordem: ela decide para quem vai o centavo do resto.
+        $ordenadas = $faturas->sortBy(fn (Fatura $f) => [$f->medidor->concessionaria->ordem(), $f->id])->values();
 
         foreach ($ordenadas as $fatura) {
             $concessionaria = $fatura->medidor->concessionaria;
-            $tipo = $concessionaria === Concessionaria::Energisa ? 'energia' : 'agua';
+            $tipo = $concessionaria->tipoItem();
             $total = (int) $fatura->valor_centavos;
             $divisao = $calculadora->dividir($total, $ids, $regra, $fracoes);
             $resto += $divisao['resto'];
@@ -180,7 +179,7 @@ class RateioService
             ]);
 
             $rateio->faturas()->attach($fatura->id);
-            $sigla = $fatura->medidor->concessionaria === Concessionaria::Energisa ? 'E' : 'A';
+            $sigla = $fatura->medidor->concessionaria->sigla();
 
             foreach ($calculo['unidades'] as $unidadeId => $dados) {
                 $cobranca = Cobranca::query()->create([
