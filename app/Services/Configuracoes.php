@@ -14,7 +14,6 @@ class Configuracoes
         'nome_edificio' => 'Edifício',
         'endereco' => 'João Pessoa – PB',
         // Contribuição mensal ao caixa por unidade.
-        'contribuicao_centavos' => 5000,
         // Vencimento interno = vencimento da concessionária − N dias.
         'dias_antecedencia' => 5,
         'pix_chave' => null,
