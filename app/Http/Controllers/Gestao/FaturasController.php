@@ -6,18 +6,18 @@ use App\Enums\StatusFatura;
 use App\Http\Apresentacao\FaturaDados;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CamposFaturaRequest;
-use App\Jobs\ProcessarEmailRecebido;
-use App\Models\EmailRecebido;
 use App\Models\Fatura;
 use App\Models\LancamentoCaixa;
 use App\Models\Medidor;
 use App\Models\Unidade;
 use App\Services\Faturas\FaturaService;
 use App\Services\Ingestao\ProcessadorPdf;
+use App\Services\Rateio\RateioService;
 use App\Support\Mes;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,13 +29,6 @@ class FaturasController extends Controller
             ->with(['medidor', 'competencia', 'rateios'])
             ->latest('id')
             ->limit(60)
-            ->get();
-
-        $emails = EmailRecebido::query()
-            ->whereIn('status', ['revisao', 'erro'])
-            ->with('caixaEntrada.unidade')
-            ->latest('id')
-            ->limit(50)
             ->get();
 
         // Contas individuais: o síndico vê se chegou e o status; valor só com autorização da unidade.
@@ -50,17 +43,6 @@ class FaturasController extends Controller
             'pendentes' => $condominio->filter(fn (Fatura $f) => in_array($f->status, [StatusFatura::PendenteConfirmacao, StatusFatura::PendenteRevisao], true))
                 ->map(fn (Fatura $f) => FaturaDados::resumo($f))->values(),
             'condominio' => $condominio->map(fn (Fatura $f) => FaturaDados::resumo($f))->values(),
-            'emails' => $emails->map(fn (EmailRecebido $e) => [
-                'id' => $e->id,
-                'caixa' => $e->caixaEntrada?->unidade ? 'apto '.$e->caixaEntrada->unidade->numero : 'condomínio',
-                'condominio' => $e->caixaEntrada?->dono_tipo === 'condominio',
-                'remetente' => $e->remetente,
-                'assunto' => $e->caixaEntrada?->dono_tipo === 'condominio' ? $e->assunto : null,
-                'status' => $e->status,
-                'erro' => $e->erro,
-                'links' => $e->caixaEntrada?->dono_tipo === 'condominio' ? ($e->links ?? []) : [],
-                'recebido_em' => $e->recebido_em->toIso8601String(),
-            ])->values(),
             'unidades' => [
                 'mes' => $mes->format('Y-m'),
                 'mes_rotulo' => Mes::rotulo($mes),
@@ -93,11 +75,12 @@ class FaturasController extends Controller
         ]);
     }
 
-    public function confirmar(Request $request, Fatura $fatura, FaturaService $faturas): RedirectResponse
+    public function confirmar(Request $request, Fatura $fatura, FaturaService $faturas, RateioService $rateios): RedirectResponse
     {
-        $faturas->confirmar($fatura, $request->user());
+        $rateio = DB::transaction(fn () => $rateios->ratear($faturas->confirmar($fatura, $request->user()), $request->user()));
 
-        return redirect()->route('gestao.painel')->with('sucesso', 'Fatura '.$fatura->medidor->concessionaria->rotulo().' confirmada.');
+        return redirect()->route('gestao.painel')->with('sucesso', 'Fatura '.$fatura->medidor->concessionaria->rotulo().' confirmada e dividida entre '
+            .$rateio->cobrancas()->count().' apartamentos.');
     }
 
     public function corrigir(CamposFaturaRequest $request, Fatura $fatura, FaturaService $faturas): RedirectResponse
@@ -152,33 +135,5 @@ class FaturasController extends Controller
             'duplicado' => back()->with('erro', 'Este PDF já foi enviado antes.'),
             default => back()->with('erro', (string) $resultado->motivo),
         };
-    }
-
-    /**
-     * Depois de cadastrar o medidor ou a senha do PDF, processa de novo o e-mail que ficou em revisão.
-     */
-    public function reprocessar(EmailRecebido $email): RedirectResponse
-    {
-        abort_unless(in_array($email->status, ['revisao', 'erro'], true), 404);
-
-        // O PDF já guardado deixaria de ser "novo": libera os anexos sem fatura para a nova tentativa.
-        $email->anexos()->get()->each(function ($anexo) {
-            if (! Fatura::query()->where('anexo_id', $anexo->id)->exists()) {
-                $anexo->delete();
-            }
-        });
-
-        $email->update(['status' => 'recebido', 'erro' => null]);
-        ProcessarEmailRecebido::dispatch($email->id);
-
-        return back()->with('sucesso', 'E-mail enviado para processar de novo.');
-    }
-
-    public function descartarEmail(EmailRecebido $email): RedirectResponse
-    {
-        abort_unless(in_array($email->status, ['revisao', 'erro'], true), 404);
-        $email->update(['status' => 'descartado']);
-
-        return back()->with('sucesso', 'E-mail descartado.');
     }
 }
