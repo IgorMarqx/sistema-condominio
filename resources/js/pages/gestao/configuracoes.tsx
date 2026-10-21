@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import Botao from '@/components/condominio/botao';
 import Cartao, { TituloSecao } from '@/components/condominio/cartao';
 import { Campo, Entrada } from '@/components/condominio/campo';
+import { CartaoAplicativo } from '@/components/condominio/instalar-app';
 import TopoTela from '@/components/condominio/topo-tela';
 import { valor } from '@/lib/formato';
 
@@ -39,6 +40,11 @@ export default function Configuracoes({ valores }: { valores: Valores }) {
                 titulo="Configurações"
                 contexto="Valem a partir da próxima conta lançada"
             />
+            {/* Fora do formulário: o botão de instalar não envia as configurações. */}
+            <section className="px-4 pb-5 lg:px-0">
+                <TituloSecao>Aplicativo</TituloSecao>
+                <CartaoAplicativo />
+            </section>
             <form
                 className="space-y-5 px-4 pb-6 lg:px-0"
                 onSubmit={(e) => {
