@@ -29,6 +29,8 @@ final class FaturaDados
             'origem' => $fatura->origem,
             'recebida_em' => $fatura->created_at->toIso8601String(),
             'tem_pdf' => $fatura->anexo_id !== null,
+            // Foto da conta anexada no lugar do PDF: a tela mostra a imagem, não o leitor de PDF.
+            'anexo_imagem' => str_starts_with((string) $fatura->anexo?->mime, 'image/'),
             'medidor' => [
                 'id' => $medidor->id,
                 'identificador' => $medidor->identificador,
