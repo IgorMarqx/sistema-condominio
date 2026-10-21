@@ -159,8 +159,8 @@ function CartaoCobranca({ cobranca }: { cobranca: Props['cobranca'] }) {
                     titulo="Nenhuma cobrança no momento"
                     className="py-6"
                 >
-                    Quando o síndico confirmar o rateio do mês, a cobrança
-                    aparece aqui.
+                    Quando o síndico lançar as contas do mês, a cobrança aparece
+                    aqui.
                 </Vazio>
             </Cartao>
         );
@@ -181,7 +181,8 @@ function CartaoCobranca({ cobranca }: { cobranca: Props['cobranca'] }) {
         <Cartao className="p-5 shadow-[0_12px_30px_-12px_rgb(19_37_79/0.35)]">
             <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-bold text-suave">
-                    Cobrança de {cobranca.mes_nome}/{cobranca.mes.slice(0, 4)}
+                    {cobranca.servico} · {cobranca.mes_nome}/
+                    {cobranca.mes.slice(0, 4)}
                 </p>
                 {selo}
             </div>
