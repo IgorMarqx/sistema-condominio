@@ -76,16 +76,17 @@
     @endif
 
     <h2>Rateio e recebimentos por unidade</h2>
-    @if (! $rateio)
+    @if ($rateios->isEmpty())
         <p class="muted">Nenhum rateio confirmado para este mês.</p>
     @else
-        <p class="muted">Regra: {{ $rateio->regra === 'igual' ? 'divisão igual' : 'fração ideal' }} · vencimento {{ $rateio->vencimento->format('d/m/Y') }} · resto de {{ $rateio->resto_centavos }} centavo(s) distribuído na ordem fixa.</p>
+        <p class="muted">Divisão igual entre as unidades ativas · vencimento {{ $rateios->min('vencimento')->format('d/m/Y') }} · resto de {{ $rateios->sum('resto_centavos') }} centavo(s) distribuído na ordem fixa.</p>
         <table>
-            <tr><th>Unidade</th><th class="num">Cobrado</th><th class="num">Recebido</th><th>Situação</th></tr>
+            <tr><th>Unidade</th><th>Conta</th><th class="num">Cobrado</th><th class="num">Recebido</th><th>Situação</th></tr>
             @foreach ($cobrancas as $c)
                 @php $recebido = (int) $c->pagamentos->sum('valor_centavos'); @endphp
                 <tr>
                     <td>{{ $c->unidade->numero }}</td>
+                    <td>{{ \App\Http\Apresentacao\CobrancaDados::servico($c) }}</td>
                     <td class="num">{{ $r($c->valor_centavos) }}</td>
                     <td class="num">{{ $r($recebido) }}</td>
                     <td>{{ $c->status->rotulo() }}</td>
@@ -93,6 +94,7 @@
             @endforeach
             <tr class="total">
                 <td>Total</td>
+                <td></td>
                 <td class="num">{{ $r((int) $cobrancas->sum('valor_centavos')) }}</td>
                 <td class="num">{{ $r((int) $cobrancas->sum(fn ($c) => $c->pagamentos->sum('valor_centavos'))) }}</td>
                 <td></td>
