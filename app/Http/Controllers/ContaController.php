@@ -28,7 +28,7 @@ class ContaController extends Controller
         }
 
         return Inertia::render('conta', [
-            'biometria_aparelho' => Aparelho::lembrado($request)['biometria'] ?? false,
+            'biometria_aparelho' => $user->isUnidade() ? (Aparelho::lembrado($request)['biometria'] ?? false) : Aparelho::gestao($request) === $user->login,
             'passkeys' => $user->passkeys()
                 ->select(['id', 'name', 'credential', 'created_at', 'last_used_at'])
                 ->latest()
