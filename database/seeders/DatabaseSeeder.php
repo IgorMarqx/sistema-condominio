@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
     {
         Artisan::call('condominio:instalar', ['--no-interaction' => true]);
 
+        $this->call(SindicoSeeder::class);
+
         if (app()->environment('local')) {
             $this->call(DemoSeeder::class);
         }
