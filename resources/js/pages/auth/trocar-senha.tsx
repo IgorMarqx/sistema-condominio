@@ -1,8 +1,10 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { ChevronLeft, LockKeyhole } from 'lucide-react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { LockKeyhole } from 'lucide-react';
 import Botao from '@/components/condominio/botao';
 import { Campo, Entrada } from '@/components/condominio/campo';
-import LogoPredio from '@/components/condominio/logo-predio';
+import TelaEntrada, {
+    CabecalhoEntrada,
+} from '@/components/condominio/tela-entrada';
 
 /**
  * Primeiro acesso: troca obrigatória da senha entregue pelo síndico. Depois, troca voluntária.
@@ -24,28 +26,24 @@ export default function TrocarSenha({
     return (
         <>
             <Head title="Trocar senha" />
-            <div className="fixed inset-0 flex flex-col overflow-y-auto bg-white">
-                <header className="topo-marinho area-segura-topo rounded-b-[28px] px-6 pt-6 pb-7 text-white">
-                    {!primeiro_acesso && (
-                        <Link
-                            href="/conta"
-                            className="mb-5 inline-flex items-center gap-1 text-sm font-semibold text-white/80"
-                        >
-                            <ChevronLeft className="size-4" /> Minha conta
-                        </Link>
-                    )}
-                    <LogoPredio tamanho="md" />
-                    <h1 className="mt-4 text-[26px] leading-tight font-extrabold tracking-tight">
-                        {primeiro_acesso
+            <TelaEntrada>
+                <CabecalhoEntrada
+                    titulo={
+                        primeiro_acesso
                             ? 'Crie a senha do apartamento'
-                            : 'Trocar senha'}
-                    </h1>
-                    <p className="mt-1 text-sm text-white/75">
-                        {primeiro_acesso
+                            : 'Trocar senha'
+                    }
+                    descricao={
+                        primeiro_acesso
                             ? `A senha entregue pelo síndico vale só para este primeiro acesso${auth.user?.tipo === 'unidade' ? '. Combine a nova com quem mora no ' + auth.user.login : ''}.`
-                            : 'Quem usa o mesmo acesso vai precisar da senha nova.'}
-                    </p>
-                </header>
+                            : 'Quem usa o mesmo acesso vai precisar da senha nova.'
+                    }
+                    voltar={
+                        primeiro_acesso
+                            ? undefined
+                            : { href: '/conta', rotulo: 'Minha conta' }
+                    }
+                />
 
                 <form
                     onSubmit={(e) => {
@@ -54,7 +52,7 @@ export default function TrocarSenha({
                             onFinish: () => form.reset(),
                         });
                     }}
-                    className="mx-auto w-full max-w-sm space-y-5 px-6 pt-6 pb-8"
+                    className="mx-auto w-full max-w-sm space-y-5 px-6 pt-6 pb-8 md:max-w-none md:px-8"
                 >
                     <Campo
                         rotulo={
@@ -123,7 +121,7 @@ export default function TrocarSenha({
                         </button>
                     )}
                 </form>
-            </div>
+            </TelaEntrada>
         </>
     );
 }
