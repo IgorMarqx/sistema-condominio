@@ -23,6 +23,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $nome
  * @property string $login
  * @property string|null $email
+ * @property string|null $cpf
+ * @property string|null $email_recuperacao
+ * @property string|null $telefone
  * @property TipoUsuario $tipo
  * @property int|null $unidade_id
  * @property string $password
@@ -38,7 +41,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  * @property-read Unidade|null $unidade
  */
-#[Fillable(['nome', 'login', 'email', 'tipo', 'unidade_id', 'password', 'deve_trocar_senha', 'ativo', 'senha_definida_em'])]
+#[Fillable(['nome', 'login', 'email', 'cpf', 'email_recuperacao', 'telefone', 'tipo', 'unidade_id', 'password', 'deve_trocar_senha', 'ativo', 'senha_definida_em'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -95,6 +98,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     public function getPasskeyUsername(): string
+    {
+        return $this->login;
+    }
+
+    /**
+     * O login identifica também apartamentos sem e-mail no broker de recuperação.
+     */
+    public function getEmailForPasswordReset(): string
     {
         return $this->login;
     }
