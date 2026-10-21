@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Cookie;
 
 /**
  * "Lembrar deste aparelho": cookie com o apartamento, o nome de quem usa e se a biometria foi
- * cadastrada aqui. Não guarda segredo nenhum — o que autentica é a sessão ou a passkey.
+ * cadastrada aqui; e o e-mail da gestão quando o síndico (ou conselho) cadastrou biometria aqui. Não guarda segredo nenhum — o que autentica é a sessão ou a passkey.
  */
 final class Aparelho
 {
@@ -21,10 +21,9 @@ final class Aparelho
      */
     public static function lembrado(Request $request): ?array
     {
-        $bruto = $request->cookie(self::COOKIE);
-        $dados = is_string($bruto) ? json_decode($bruto, true) : null;
+        $dados = self::bruto($request);
 
-        if (! is_array($dados) || ! isset($dados['apto']) || ! preg_match('/^\d{3,4}$/', (string) $dados['apto'])) {
+        if (! isset($dados['apto']) || ! preg_match('/^\d{3,4}$/', (string) $dados['apto'])) {
             return null;
         }
 
@@ -37,18 +36,96 @@ final class Aparelho
 
     public static function lembrar(string $apto, ?string $nome, bool $biometria = false): void
     {
+        $atual = self::bruto(request());
+
+        self::gravar([
+            ...$atual,
+            'apto' => $apto,
+            'nome' => $nome,
+            'biometria' => $biometria,
+            // A tela de biometria abre para quem cadastrou por último neste aparelho.
+            'entrada' => $biometria ? 'unidade' : ($atual['entrada'] ?? null),
+        ]);
+    }
+
+    /**
+     * Síndico ou conselho com biometria cadastrada neste aparelho: a próxima entrada abre direto
+     * nela, sem senha e sem o código do 2FA.
+     */
+    public static function lembrarGestao(string $email): void
+    {
+        self::gravar([...self::bruto(request()), 'gestao' => $email, 'entrada' => 'gestao']);
+    }
+
+    /** "Trocar apartamento": esquece só o apartamento; a biometria da gestão continua. */
+    public static function esquecer(): void
+    {
+        $atual = self::bruto(request());
+        self::gravar(isset($atual['gestao']) ? ['gestao' => $atual['gestao'], 'entrada' => 'gestao'] : []);
+    }
+
+    public static function esquecerGestao(): void
+    {
+        $atual = self::bruto(request());
+        unset($atual['gestao']);
+        $atual['entrada'] = ($atual['biometria'] ?? false) ? 'unidade' : null;
+        self::gravar($atual);
+    }
+
+    /** E-mail da gestão lembrado com biometria neste aparelho. */
+    public static function gestao(Request $request): ?string
+    {
+        $email = self::bruto($request)['gestao'] ?? null;
+
+        return is_string($email) && filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null;
+    }
+
+    /**
+     * Tela de biometria da gestão: celular, último cadastro de biometria daqui foi da gestão e a
+     * conta ainda tem passkey.
+     */
+    public static function entradaPorBiometriaGestao(Request $request): ?User
+    {
+        $email = self::gestao($request);
+
+        if (! $email || (self::bruto($request)['entrada'] ?? null) !== 'gestao' || ! self::celular($request)) {
+            return null;
+        }
+
+        $user = User::query()->where('login', $email)->where('ativo', true)->first();
+
+        return $user !== null && $user->vePainelGestao() && $user->hasPasskeysEnabled() ? $user : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function bruto(Request $request): array
+    {
+        $bruto = $request->cookie(self::COOKIE);
+        $dados = is_string($bruto) ? json_decode($bruto, true) : null;
+
+        return is_array($dados) ? $dados : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $dados
+     */
+    private static function gravar(array $dados): void
+    {
+        if ($dados === []) {
+            Cookie::queue(Cookie::forget(self::COOKIE));
+
+            return;
+        }
+
         Cookie::queue(Cookie::make(
             self::COOKIE,
-            (string) json_encode(['apto' => $apto, 'nome' => $nome, 'biometria' => $biometria]),
+            (string) json_encode($dados),
             self::MINUTOS,
             httpOnly: true,
             sameSite: 'lax',
         ));
-    }
-
-    public static function esquecer(): void
-    {
-        Cookie::queue(Cookie::forget(self::COOKIE));
     }
 
     /**
@@ -59,7 +136,7 @@ final class Aparelho
     {
         $lembrado = self::lembrado($request);
 
-        if (! $lembrado || ! $lembrado['biometria'] || ! self::celular($request)) {
+        if (! $lembrado || ! $lembrado['biometria'] || ! self::celular($request) || (self::bruto($request)['entrada'] ?? 'unidade') === 'gestao') {
             return false;
         }
 
