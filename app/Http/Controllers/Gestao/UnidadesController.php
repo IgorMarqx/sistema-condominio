@@ -11,6 +11,7 @@ use App\Support\SenhaAleatoria;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,36 +49,74 @@ class UnidadesController extends Controller
     }
 
     /**
+     * Apartamento novo: já entra ativo (no rateio e na grade do login) e sai com a senha provisória.
+     */
+    public function store(Request $request, Auditoria $auditoria): RedirectResponse
+    {
+        $dados = $request->validate([
+            'numero' => ['required', 'string', 'regex:/^[1-9]\d{2,3}$/', Rule::unique('unidades', 'numero'), Rule::unique('users', 'login')],
+            'fracao_ideal' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ], ['numero.regex' => 'Use o número do apartamento, como 104 ou 1201.'], ['numero' => 'número']);
+
+        $senha = SenhaAleatoria::gerar();
+
+        $unidade = DB::transaction(function () use ($dados, $senha, $auditoria) {
+            $unidade = Unidade::query()->create([
+                'numero' => $dados['numero'],
+                // 104 → 1º andar, 1201 → 12º: o número sem os dois últimos dígitos.
+                'andar' => intdiv((int) $dados['numero'], 100),
+                'fracao_ideal' => $dados['fracao_ideal'] ?? null,
+                'ativa' => true,
+            ]);
+
+            $auditoria->registrar('unidade.criada', $unidade, null, [
+                'numero' => $unidade->numero,
+                'andar' => $unidade->andar,
+                'fracao_ideal' => $unidade->fracao_ideal,
+            ]);
+
+            $this->definirSenha($unidade, $senha, $auditoria);
+
+            return $unidade;
+        });
+
+        return back()->with('senha_gerada', ['apto' => $unidade->numero, 'senha' => $senha]);
+    }
+
+    /**
      * Gera a senha nova (16 caracteres), mostra uma vez só e obriga a troca no primeiro acesso.
      */
     public function senha(Request $request, Unidade $unidade, Auditoria $auditoria): RedirectResponse
     {
         $senha = SenhaAleatoria::gerar();
 
-        DB::transaction(function () use ($unidade, $senha, $auditoria) {
-            $user = $unidade->acesso ?? new User([
-                'nome' => 'Apartamento '.$unidade->numero,
-                'login' => $unidade->numero,
-                'tipo' => 'unidade',
-                'unidade_id' => $unidade->id,
-            ]);
-
-            $user->forceFill([
-                'password' => $senha,
-                'deve_trocar_senha' => true,
-                'senha_definida_em' => now(),
-                'ativo' => true,
-            ])->save();
-
-            // Senha nova derruba as sessões abertas e a biometria cadastrada com a senha antiga.
-            DB::table('sessions')->where('user_id', $user->id)->delete();
-            $user->passkeys()->delete();
-            $user->forceFill(['remember_token' => null])->save();
-
-            $auditoria->registrar('acesso.senha_redefinida', $user, null, ['unidade' => $unidade->numero]);
-        });
+        DB::transaction(fn () => $this->definirSenha($unidade, $senha, $auditoria));
 
         return back()->with('senha_gerada', ['apto' => $unidade->numero, 'senha' => $senha]);
+    }
+
+    private function definirSenha(Unidade $unidade, string $senha, Auditoria $auditoria): void
+    {
+        $user = $unidade->acesso ?? new User([
+            'nome' => 'Apartamento '.$unidade->numero,
+            'login' => $unidade->numero,
+            'tipo' => 'unidade',
+            'unidade_id' => $unidade->id,
+        ]);
+
+        $user->forceFill([
+            'password' => $senha,
+            'deve_trocar_senha' => true,
+            'senha_definida_em' => now(),
+            'ativo' => true,
+        ])->save();
+
+        // Senha nova derruba as sessões abertas e a biometria cadastrada com a senha antiga.
+        DB::table('sessions')->where('user_id', $user->id)->delete();
+        $user->passkeys()->delete();
+        $user->forceFill(['remember_token' => null])->save();
+
+        $auditoria->registrar('acesso.senha_redefinida', $user, null, ['unidade' => $unidade->numero]);
     }
 
     public function update(Request $request, Unidade $unidade, Auditoria $auditoria): RedirectResponse
