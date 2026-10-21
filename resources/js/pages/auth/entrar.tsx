@@ -6,6 +6,9 @@ import Botao from '@/components/condominio/botao';
 import { Campo, Entrada } from '@/components/condominio/campo';
 import Folha from '@/components/condominio/folha';
 import LogoPredio from '@/components/condominio/logo-predio';
+import TelaEntrada, {
+    CabecalhoEntrada,
+} from '@/components/condominio/tela-entrada';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
@@ -186,8 +189,8 @@ function TelaBemVindo({
     };
 
     return (
-        <div className="fixed inset-0 flex flex-col overflow-y-auto bg-white">
-            <div className="area-segura-topo flex flex-1 flex-col px-6 pt-10">
+        <TelaEntrada>
+            <div className="area-segura-topo flex flex-1 flex-col px-6 pt-10 md:px-8 md:pb-8">
                 <div className="flex flex-col items-center text-center">
                     <div className="rounded-full bg-marinho-50 p-3">
                         <LogoPredio tamanho="lg" />
@@ -202,7 +205,7 @@ function TelaBemVindo({
 
                 <form
                     onSubmit={enviar}
-                    className="mx-auto mt-7 w-full max-w-sm space-y-4"
+                    className="mx-auto mt-7 w-full max-w-sm space-y-4 md:max-w-none"
                 >
                     <div className="flex items-center gap-3 rounded-2xl border border-linha bg-[#f7f8fb] p-3">
                         <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-marinho-900 text-sm font-extrabold text-ouro-500">
@@ -303,10 +306,15 @@ function TelaBemVindo({
                             )}
                         </>
                     )}
+
+                    <p className="hidden items-center justify-center gap-1.5 pt-1 text-xs text-suave md:flex">
+                        <ShieldCheck className="size-3.5" />
+                        Senha esquecida? Peça uma nova ao síndico.
+                    </p>
                 </form>
             </div>
 
-            <div className="area-segura-baixo arcos relative mt-8 bg-gradient-to-b from-white via-[#c7d0e4] to-marinho-800 px-6 pt-14 pb-5">
+            <div className="area-segura-baixo arcos relative mt-8 bg-gradient-to-b from-white via-[#c7d0e4] to-marinho-800 px-6 pt-14 pb-5 md:hidden">
                 <p className="flex items-center justify-center gap-2 text-xs font-semibold text-white">
                     <ShieldCheck className="size-4" />
                     Senha esquecida? Peça uma nova ao síndico.
@@ -314,7 +322,7 @@ function TelaBemVindo({
             </div>
 
             <AjudaSenha aberta={esqueci} aoMudar={setEsqueci} />
-        </div>
+        </TelaEntrada>
     );
 }
 
@@ -337,20 +345,15 @@ function TelaGrade({ apartamentos }: { apartamentos: string[][] }) {
     };
 
     return (
-        <div className="fixed inset-0 flex flex-col overflow-y-auto bg-white">
-            <header className="topo-marinho area-segura-topo rounded-b-[28px] px-6 pt-8 pb-7 text-white">
-                <LogoPredio tamanho="md" />
-                <h1 className="mt-4 text-[26px] leading-tight font-extrabold tracking-tight">
-                    Qual é o seu apartamento?
-                </h1>
-                <p className="mt-1 text-sm text-white/75">
-                    O acesso é por unidade. Use a senha que o síndico entregou.
-                </p>
-            </header>
+        <TelaEntrada>
+            <CabecalhoEntrada
+                titulo="Qual é o seu apartamento?"
+                descricao="O acesso é por unidade. Use a senha que o síndico entregou."
+            />
 
             <form
                 onSubmit={enviar}
-                className="mx-auto w-full max-w-sm flex-1 space-y-5 px-6 pt-6 pb-6"
+                className="mx-auto w-full max-w-sm flex-1 space-y-5 px-6 pt-6 pb-6 md:max-w-none md:px-8 md:pb-8"
             >
                 <Campo rotulo="Apartamento" erro={form.errors.login}>
                     <div
@@ -441,7 +444,7 @@ function TelaGrade({ apartamentos }: { apartamentos: string[][] }) {
             </form>
 
             <AjudaSenha aberta={esqueci} aoMudar={setEsqueci} />
-        </div>
+        </TelaEntrada>
     );
 }
 
