@@ -4,7 +4,9 @@ import { KeyRound, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import Botao from '@/components/condominio/botao';
 import { Campo, Entrada } from '@/components/condominio/campo';
-import LogoPredio from '@/components/condominio/logo-predio';
+import TelaEntrada, {
+    CabecalhoEntrada,
+} from '@/components/condominio/tela-entrada';
 import {
     InputOTP,
     InputOTPGroup,
@@ -18,18 +20,15 @@ export default function DoisFatores() {
     return (
         <>
             <Head title="Verificação em duas etapas" />
-            <div className="fixed inset-0 flex flex-col overflow-y-auto bg-white">
-                <header className="topo-marinho area-segura-topo rounded-b-[28px] px-6 pt-8 pb-7 text-white">
-                    <LogoPredio tamanho="md" />
-                    <h1 className="mt-4 text-[26px] leading-tight font-extrabold tracking-tight">
-                        Verificação em duas etapas
-                    </h1>
-                    <p className="mt-1 text-sm text-white/75">
-                        {recuperacao
+            <TelaEntrada>
+                <CabecalhoEntrada
+                    titulo="Verificação em duas etapas"
+                    descricao={
+                        recuperacao
                             ? 'Digite um dos códigos de recuperação guardados.'
-                            : 'Digite o código de 6 dígitos do aplicativo autenticador.'}
-                    </p>
-                </header>
+                            : 'Digite o código de 6 dígitos do aplicativo autenticador.'
+                    }
+                />
 
                 <form
                     onSubmit={(e) => {
@@ -43,7 +42,7 @@ export default function DoisFatores() {
                             onError: () => form.reset(),
                         });
                     }}
-                    className="mx-auto w-full max-w-sm space-y-5 px-6 pt-8 pb-8"
+                    className="mx-auto w-full max-w-sm space-y-5 px-6 pt-8 pb-8 md:max-w-none md:px-8"
                 >
                     {recuperacao ? (
                         <Campo
@@ -117,7 +116,7 @@ export default function DoisFatores() {
                             : 'Usar um código de recuperação'}
                     </button>
                 </form>
-            </div>
+            </TelaEntrada>
         </>
     );
 }
