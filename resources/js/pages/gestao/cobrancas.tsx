@@ -55,8 +55,8 @@ export default function Cobrancas(props: Props) {
                 titulo="Cobranças"
                 contexto={
                     props.mes_rotulo
-                        ? `Rateio de ${props.mes_rotulo}`
-                        : 'Nenhum rateio confirmado'
+                        ? `Cobranças de ${props.mes_rotulo}`
+                        : 'Nenhuma conta lançada'
                 }
                 acao={
                     props.meses.length > 1 && (
@@ -85,11 +85,11 @@ export default function Cobrancas(props: Props) {
                 {props.cobrancas.length === 0 ? (
                     <Cartao>
                         <Vazio icone={ReceiptText} titulo="Sem cobranças">
-                            Confirme o rateio do mês para gerar as cobranças das
-                            unidades.
+                            Lance a conta da Energisa ou da Cagepa no painel
+                            para gerar as cobranças das unidades.
                         </Vazio>
                         <Botao asChild largo>
-                            <Link href="/gestao/rateio">Ir para o rateio</Link>
+                            <Link href="/gestao">Ir para o painel</Link>
                         </Botao>
                     </Cartao>
                 ) : (
@@ -141,7 +141,8 @@ export default function Cobrancas(props: Props) {
                                                     {dinheiro(c.valor)}
                                                 </span>
                                                 <span className="block truncate text-xs text-suave">
-                                                    vence {diaMes(c.vencimento)}
+                                                    {c.servico} · vence{' '}
+                                                    {diaMes(c.vencimento)}
                                                     {c.em_aberto > 0 &&
                                                         c.em_aberto < c.valor &&
                                                         ` · falta ${dinheiro(c.em_aberto)}`}
