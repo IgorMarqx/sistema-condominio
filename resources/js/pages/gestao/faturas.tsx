@@ -3,9 +3,7 @@ import {
     ChevronLeft,
     ChevronRight,
     FileText,
-    Inbox,
     Lock,
-    RefreshCw,
     Upload,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -27,22 +25,9 @@ import { diaMes, dinheiro, quandoComHora, somarMes } from '@/lib/formato';
 import { cn } from '@/lib/utils';
 import type { ConcessionariaId, Fatura } from '@/types';
 
-type Email = {
-    id: number;
-    caixa: string;
-    condominio: boolean;
-    remetente: string | null;
-    assunto: string | null;
-    status: string;
-    erro: string | null;
-    links: string[];
-    recebido_em: string;
-};
-
 type Props = {
     pendentes: Fatura[];
     condominio: Fatura[];
-    emails: Email[];
     unidades: {
         mes: string;
         mes_rotulo: string;
@@ -70,7 +55,7 @@ export default function Faturas(props: Props) {
               : 'pendentes',
     );
     const [upload, setUpload] = useState(false);
-    const totalPendentes = props.pendentes.length + props.emails.length;
+    const totalPendentes = props.pendentes.length;
 
     return (
         <>
@@ -129,36 +114,6 @@ export default function Faturas(props: Props) {
                                 <LinhaFatura key={f.id} fatura={f} />
                             ))}
                         </Cartao>
-
-                        {props.emails.length > 0 && (
-                            <section className="space-y-2">
-                                <h2 className="px-1 text-[15px] font-extrabold">
-                                    E-mails que não viraram fatura
-                                </h2>
-                                <Cartao className="divide-y divide-linha py-1">
-                                    {props.emails.map((e) => (
-                                        <LinhaEmail
-                                            key={e.id}
-                                            email={e}
-                                            podeEditar={
-                                                auth.user?.pode_editar ?? false
-                                            }
-                                        />
-                                    ))}
-                                </Cartao>
-                            </section>
-                        )}
-
-                        <Link
-                            href="/gestao/receber-faturas"
-                            className="flex items-center gap-3 rounded-2xl border border-linha bg-white p-4"
-                        >
-                            <Inbox className="size-5 text-marinho-700" />
-                            <span className="flex-1 text-sm font-bold">
-                                Endereço de recebimento do condomínio
-                            </span>
-                            <ChevronRight className="size-4 text-suave" />
-                        </Link>
                     </>
                 )}
 
@@ -213,72 +168,6 @@ function LinhaFatura({ fatura: f }: { fatura: Fatura }) {
                 <SeloFatura fatura={f} />
             </div>
         </Link>
-    );
-}
-
-function LinhaEmail({
-    email: e,
-    podeEditar,
-}: {
-    email: Email;
-    podeEditar: boolean;
-}) {
-    return (
-        <div className="space-y-1.5 py-3">
-            <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                    <p className="truncate text-sm font-bold">
-                        {e.assunto ?? `E-mail para o ${e.caixa}`}
-                    </p>
-                    <p className="truncate text-xs text-suave">
-                        {e.remetente} · {e.caixa} ·{' '}
-                        {quandoComHora(e.recebido_em)}
-                    </p>
-                </div>
-                <Selo tom={e.status === 'erro' ? 'atrasado' : 'alerta'}>
-                    {e.status === 'erro' ? 'Erro' : 'Revisar'}
-                </Selo>
-            </div>
-            {e.erro && <p className="text-xs text-orange-700">{e.erro}</p>}
-            {e.links.length > 0 && (
-                <p
-                    className="truncate font-mono text-[11px] text-suave"
-                    title={e.links.join('\n')}
-                >
-                    Links (não abertos): {e.links[0]}
-                </p>
-            )}
-            {podeEditar && (
-                <div className="flex gap-2 pt-1">
-                    <Botao
-                        tamanho="sm"
-                        tom="branco"
-                        onClick={() =>
-                            router.post(
-                                `/gestao/emails/${e.id}/reprocessar`,
-                                {},
-                                { preserveScroll: true },
-                            )
-                        }
-                    >
-                        <RefreshCw /> Processar de novo
-                    </Botao>
-                    <Botao
-                        tamanho="sm"
-                        tom="fantasma"
-                        onClick={() =>
-                            router.post(
-                                `/gestao/emails/${e.id}/descartar`,
-                                {},
-                                { preserveScroll: true },
-                            )
-                        }
-                    >
-                        Descartar
-                    </Botao>
-                </div>
-            )}
-        </div>
     );
 }
 
