@@ -28,6 +28,10 @@ export type EstadoInstalacao = {
     nativo: boolean;
     /** iPhone/iPad: só dá para instalar pelo Compartilhar do Safari. */
     ios: boolean;
+    /** Android sem o pedido nativo: instala pelo menu do Chrome. */
+    android: boolean;
+    /** Navegador dentro de outro app (Instagram, Facebook): não instala, precisa abrir no navegador. */
+    embutido: boolean;
 };
 
 let pedidoAdiado: EventoInstalacao | null = null;
@@ -35,6 +39,8 @@ let estado: EstadoInstalacao = {
     instalado: false,
     nativo: false,
     ios: false,
+    android: false,
+    embutido: false,
 };
 const ouvintes = new Set<() => void>();
 
@@ -67,6 +73,10 @@ export function capturarInstalacao(): void {
             (navigator as Navigator & { standalone?: boolean }).standalone ===
                 true,
         ios: aparelhoIos(),
+        android: /android/i.test(navigator.userAgent),
+        embutido: /FBAN|FBAV|Instagram|Line\/|; wv\)/i.test(
+            navigator.userAgent,
+        ),
     });
 
     window.addEventListener('beforeinstallprompt', (evento) => {
@@ -95,6 +105,8 @@ const semInstalacao: EstadoInstalacao = {
     instalado: false,
     nativo: false,
     ios: false,
+    android: false,
+    embutido: false,
 };
 
 /** No SSR não há aparelho: nada é oferecido até a hidratação terminar. */
