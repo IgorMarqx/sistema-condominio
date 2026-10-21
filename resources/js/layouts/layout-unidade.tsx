@@ -27,10 +27,7 @@ const itens: ItemNavegacao[] = [
         rotulo: 'Minhas contas',
         href: '/minhas-contas',
         icone: ChartLine,
-        ativo: (u) =>
-            u.startsWith('/minhas-contas') ||
-            u.startsWith('/receber-faturas') ||
-            u.startsWith('/conta'),
+        ativo: (u) => u.startsWith('/minhas-contas') || u.startsWith('/conta'),
     },
 ];
 
