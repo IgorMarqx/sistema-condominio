@@ -84,13 +84,13 @@ class RateioCobrancaTest extends TestCase
             ->assertSessionHas('sucesso');
 
         // 41257 ÷ 11 = 3750 e sobram 7 centavos: 101, 102, 103, 201, 202, 203 e 301 levam 1 a mais.
-        // A primeira conta do mês leva também a contribuição ao caixa (R$ 50,00).
+        // Só a conta dividida: sem contribuição ao caixa somada.
         $energia = Cobranca::query()->with('unidade')->get()->mapWithKeys(fn ($c) => [$c->unidade->numero => $c->valor_centavos]);
         $this->assertCount(11, $energia);
         $this->assertArrayNotHasKey('403', $energia->all());
-        $this->assertSame(3751 + 5000, $energia['101']);
-        $this->assertSame(3750 + 5000, $energia['302']);
-        $this->assertSame(41257 + 11 * 5000, $energia->sum());
+        $this->assertSame(3751, $energia['101']);
+        $this->assertSame(3750, $energia['302']);
+        $this->assertSame(41257, $energia->sum());
 
         $fatura = Fatura::query()->firstOrFail();
         $this->assertSame('manual', $fatura->origem);
@@ -98,7 +98,7 @@ class RateioCobrancaTest extends TestCase
         $this->assertSame('512.000', (string) $fatura->consumo);
         $this->assertSame(11, Notificacao::query()->where('tipo', 'cobranca_gerada')->count());
 
-        // A água vira outra cobrança do mesmo mês, sem a contribuição de novo.
+        // A água vira outra cobrança do mesmo mês.
         $this->actingAs($admin)->post('/gestao/contas', ['concessionaria' => 'cagepa', 'valor' => '238,10', 'consumo' => '28'])
             ->assertSessionHas('sucesso');
 
@@ -136,7 +136,7 @@ class RateioCobrancaTest extends TestCase
         $this->assertNull($fatura->unidade_medida);
         $this->assertNull($fatura->competencia->leitura_prevista);
 
-        // 12000 ÷ 12 = 1000 por apartamento, sem a contribuição (já foi na energia).
+        // 12000 ÷ 12 = 1000 por apartamento.
         $internet = Cobranca::query()->where('rateio_id', Rateio::query()->max('id'))->with('itens')->get();
         $this->assertCount(12, $internet);
         $this->assertTrue($internet->every(fn (Cobranca $c) => $c->valor_centavos === 1000 && $c->itens->pluck('tipo')->all() === ['internet']));
@@ -146,7 +146,7 @@ class RateioCobrancaTest extends TestCase
         $this->actingAs($admin)->get('/gestao')->assertInertia(fn ($page) => $page
             ->where('contas.internet.lancada.valor', 12000)
             ->where('cobrancas.unidades.0.numero', '401')
-            ->where('cobrancas.unidades.0.total', 3438 + 5000 + 1000)
+            ->where('cobrancas.unidades.0.total', 3438 + 1000)
             ->where('cobrancas.unidades.0.cobrancas.1.tipos', ['internet'])
             ->where('cobrancas.unidades.0.cobrancas.1.servico', 'Internet'));
 
@@ -163,9 +163,9 @@ class RateioCobrancaTest extends TestCase
 
         $this->assertSame(StatusCobranca::Paga, $cobranca->refresh()->status);
         $lancamento = LancamentoCaixa::query()->where('origem_tipo', 'pagamento')->firstOrFail();
-        $this->assertSame(8438, $lancamento->valor_centavos);
+        $this->assertSame(3438, $lancamento->valor_centavos);
         $this->assertNull($lancamento->comprovante_s3);
-        $this->assertSame(8438, app(CaixaService::class)->saldo());
+        $this->assertSame(3438, app(CaixaService::class)->saldo());
 
         $this->actingAs($admin)->post("/gestao/cobrancas/{$cobranca->id}/paga")->assertSessionHas('erro');
 
@@ -202,9 +202,9 @@ class RateioCobrancaTest extends TestCase
 
         $this->actingAs($morador)->get('/cobranca')->assertInertia(fn ($p) => $p
             ->component('unidade/cobranca')
-            ->where('cobranca.valor', 8438)
+            ->where('cobranca.valor', 3438)
             ->where('cobranca.servico', 'Energia')
-            ->where('cobranca.pix', fn ($pix) => str_starts_with($pix, '000201') && str_contains($pix, '84.38')));
+            ->where('cobranca.pix', fn ($pix) => str_starts_with($pix, '000201') && str_contains($pix, '34.38')));
 
         $this->actingAs($morador)->withSession(['nome_informado' => 'Maria'])->post("/cobranca/{$cobranca->id}/comprovante", [
             'arquivo' => UploadedFile::fake()->image('pix.jpg'),
@@ -219,9 +219,9 @@ class RateioCobrancaTest extends TestCase
 
         $this->assertSame(StatusCobranca::Paga, $cobranca->refresh()->status);
         $lancamento = LancamentoCaixa::query()->where('origem_tipo', 'pagamento')->firstOrFail();
-        $this->assertSame(8438, $lancamento->valor_centavos);
+        $this->assertSame(3438, $lancamento->valor_centavos);
         $this->assertSame($pagamento->sha256, $lancamento->comprovante_sha256);
-        $this->assertSame(8438, app(CaixaService::class)->saldo());
+        $this->assertSame(3438, app(CaixaService::class)->saldo());
 
         // Estornar o lançamento reabre a cobrança.
         $this->actingAs($admin)->post("/gestao/caixa/lancamentos/{$lancamento->id}/estornar", ['motivo' => 'Pix não caiu'])->assertSessionHas('sucesso');
@@ -265,7 +265,7 @@ class RateioCobrancaTest extends TestCase
         $this->lancarEnergia();
 
         $cobranca = $this->cobrancaDo('302');
-        $this->assertSame(8438 - 1000, $cobranca->valor_centavos);
+        $this->assertSame(3438 - 1000, $cobranca->valor_centavos);
         $this->assertTrue($cobranca->itens()->where('tipo', 'ajuste')->exists());
     }
 
