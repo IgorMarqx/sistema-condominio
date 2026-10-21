@@ -17,6 +17,8 @@ import { toast } from 'sonner';
 import Botao from '@/components/condominio/botao';
 import BotaoCopiar from '@/components/condominio/botao-copiar';
 import Cartao, { TituloSecao } from '@/components/condominio/cartao';
+import ContatosRecuperacao from '@/components/condominio/contatos-recuperacao';
+import type { ContatosRecuperacaoProps } from '@/components/condominio/contatos-recuperacao';
 import { Campo, Entrada } from '@/components/condominio/campo';
 import { useSenhaConfirmada } from '@/components/condominio/confirmar-senha';
 import Folha from '@/components/condominio/folha';
@@ -38,6 +40,7 @@ type Props = {
     dois_fatores: { ativo: boolean; confirmado: boolean; obrigatorio: boolean };
     email_avisos: string | null;
     nome_informado: string | null;
+    contatos_recuperacao: ContatosRecuperacaoProps;
 };
 
 export default function Conta(props: Props) {
@@ -101,6 +104,13 @@ export default function Conta(props: Props) {
                         <EmailAvisos atual={props.email_avisos} />
                     </section>
                 )}
+
+                <section>
+                    <TituloSecao>Recuperação de senha</TituloSecao>
+                    <ContatosRecuperacao
+                        contatos={props.contatos_recuperacao}
+                    />
+                </section>
 
                 <Cartao className="divide-y divide-linha py-1">
                     <Link
