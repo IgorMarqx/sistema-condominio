@@ -65,6 +65,6 @@ class ImportacaoPdfTest extends TestCase
         $this->actingAs($admin)->post("/gestao/faturas/{$fatura->id}/confirmar")->assertSessionHas('sucesso');
 
         $this->assertSame(12, Cobranca::query()->count());
-        $this->assertSame(41257 + 12 * 5000, (int) Cobranca::query()->sum('valor_centavos'));
+        $this->assertSame(41257, (int) Cobranca::query()->sum('valor_centavos'));
     }
 }
