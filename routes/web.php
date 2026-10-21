@@ -8,14 +8,8 @@ use App\Http\Controllers\ContaController;
 use App\Http\Controllers\Gestao;
 use App\Http\Controllers\Unidade;
 use App\Http\Controllers\Unidade\AvisosController;
-use App\Http\Controllers\Unidade\ReceberFaturasController;
-use App\Http\Controllers\Webhooks\EmailController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-
-// Entrada de e-mails (fora do CSRF; autenticados por assinatura SNS ou token).
-Route::post('webhooks/email/sns', [EmailController::class, 'sns'])->middleware('throttle:120,1')->name('webhooks.email.sns');
-Route::post('webhooks/email/bruto/{token}', [EmailController::class, 'bruto'])->middleware('throttle:120,1')->name('webhooks.email.bruto');
 
 Route::middleware('guest')->group(function () {
     Route::get('entrar/gestao', fn () => Inertia::render('auth/entrar-gestao'))->name('login.gestao');
@@ -65,9 +59,6 @@ Route::middleware('auth')->group(function () {
         Route::put('minhas-contas/medidores/{medidor}/senha-pdf', [Unidade\MinhasContasController::class, 'senhaPdf'])->name('minhas-contas.senha-pdf');
         Route::put('minhas-contas/privacidade', [Unidade\MinhasContasController::class, 'privacidade'])->name('minhas-contas.privacidade');
         Route::delete('minhas-contas/historico', [Unidade\MinhasContasController::class, 'excluirHistorico'])->name('minhas-contas.excluir-historico');
-
-        Route::get('receber-faturas', [ReceberFaturasController::class, 'show'])->name('receber-faturas');
-        Route::post('receber-faturas/regenerar', [ReceberFaturasController::class, 'regenerar'])->name('receber-faturas.regenerar');
     });
 
     // Gestão: síndico (com 2FA) e conselho (somente leitura).
@@ -82,25 +73,19 @@ Route::middleware('auth')->group(function () {
         Route::patch('faturas/{fatura}', [Gestao\FaturasController::class, 'corrigir'])->name('faturas.corrigir');
         Route::post('faturas/{fatura}/rejeitar', [Gestao\FaturasController::class, 'rejeitar'])->name('faturas.rejeitar');
         Route::post('faturas/{fatura}/pagar', [Gestao\FaturasController::class, 'pagar'])->name('faturas.pagar');
-        Route::post('emails/{email}/reprocessar', [Gestao\FaturasController::class, 'reprocessar'])->name('emails.reprocessar');
-        Route::post('emails/{email}/descartar', [Gestao\FaturasController::class, 'descartarEmail'])->name('emails.descartar');
 
-        Route::get('receber-faturas', [ReceberFaturasController::class, 'show'])->name('receber-faturas');
-        Route::post('receber-faturas/regenerar', [ReceberFaturasController::class, 'regenerar'])->name('receber-faturas.regenerar');
+        // Conta do condomínio digitada no painel (valor e consumo), já dividida entre as unidades.
+        Route::post('contas', [Gestao\ContasController::class, 'store'])->name('contas.store');
 
         Route::get('leituras', [Gestao\LeiturasController::class, 'index'])->name('leituras');
         Route::post('competencias/{competencia}', [Gestao\LeiturasController::class, 'update'])->name('competencias.update');
-
-        Route::get('rateio', [Gestao\RateioController::class, 'show'])->name('rateio');
-        Route::post('rateio', [Gestao\RateioController::class, 'store'])->name('rateio.store');
-        Route::post('rateio/{rateio}/confirmar', [Gestao\RateioController::class, 'confirmar'])->name('rateio.confirmar');
-        Route::delete('rateio/{rateio}', [Gestao\RateioController::class, 'destroy'])->name('rateio.destroy');
-        Route::post('ajustes', [Gestao\RateioController::class, 'ajuste'])->name('ajustes.store');
 
         Route::get('cobrancas', [Gestao\CobrancasController::class, 'index'])->name('cobrancas');
         Route::post('pagamentos/{pagamento}/confirmar', [Gestao\CobrancasController::class, 'confirmar'])->name('pagamentos.confirmar');
         Route::post('pagamentos/{pagamento}/recusar', [Gestao\CobrancasController::class, 'recusar'])->name('pagamentos.recusar');
         Route::post('cobrancas/{cobranca}/recebimento', [Gestao\CobrancasController::class, 'recebimento'])->name('cobrancas.recebimento');
+        Route::post('cobrancas/{cobranca}/paga', [Gestao\CobrancasController::class, 'paga'])->name('cobrancas.paga');
+        Route::post('cobrancas/{cobranca}/nao-paga', [Gestao\CobrancasController::class, 'naoPaga'])->name('cobrancas.nao-paga');
 
         Route::get('caixa', [CaixaController::class, 'index'])->name('caixa');
         Route::post('caixa/lancamentos', [Gestao\LancamentosController::class, 'store'])->name('lancamentos.store');
