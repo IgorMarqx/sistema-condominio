@@ -40,6 +40,10 @@ class CompetenciaService
      */
     public function previsao(Medidor $medidor, Carbon $mes): array
     {
+        if (! $medidor->concessionaria->temLeitura()) {
+            return [null, null];
+        }
+
         $anterior = Fatura::query()
             ->where('medidor_id', $medidor->id)
             ->where('status', '!=', 'rejeitada')
