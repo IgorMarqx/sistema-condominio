@@ -18,6 +18,7 @@ import {
 import { useState } from 'react';
 import Folha from '@/components/condominio/folha';
 import LogoPredio from '@/components/condominio/logo-predio';
+import ConviteInstalar from '@/components/condominio/convite-instalar';
 import { useFlash } from '@/hooks/use-flash';
 import { cn } from '@/lib/utils';
 import type { LayoutProps } from '@/types';
@@ -203,6 +204,8 @@ export default function LayoutGestao({ children }: LayoutProps) {
                     ]}
                 />
             </div>
+
+            <ConviteInstalar />
 
             <Folha
                 aberta={mais}
