@@ -79,7 +79,7 @@ Route::middleware('auth')->group(function () {
         Route::post('faturas/{fatura}/confirmar', [Gestao\FaturasController::class, 'confirmar'])->name('faturas.confirmar');
         Route::patch('faturas/{fatura}', [Gestao\FaturasController::class, 'corrigir'])->name('faturas.corrigir');
         Route::post('faturas/{fatura}/rejeitar', [Gestao\FaturasController::class, 'rejeitar'])->name('faturas.rejeitar');
-        Route::post('faturas/{fatura}/pdf', [Gestao\FaturasController::class, 'anexarPdf'])->name('faturas.pdf');
+        Route::post('faturas/{fatura}/anexo', [Gestao\FaturasController::class, 'anexar'])->name('faturas.anexo');
         Route::post('faturas/{fatura}/pagar', [Gestao\FaturasController::class, 'pagar'])->name('faturas.pagar');
 
         // Conta do condomínio digitada no painel (valor e consumo), já dividida entre as unidades.
