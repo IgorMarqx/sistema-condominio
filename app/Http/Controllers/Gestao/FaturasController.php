@@ -103,7 +103,7 @@ class FaturasController extends Controller
     {
         $dados = $request->validate([
             'data' => ['required', 'date', 'before_or_equal:today'],
-            'comprovante' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,heic'],
+            'comprovante' => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp,heic'],
         ]);
 
         $faturas->pagarCondominio($fatura, Carbon::parse($dados['data']), $request->file('comprovante'), $request->user());
