@@ -42,7 +42,8 @@ class RateioService
      */
     public function calcular(Collection $faturas, ?Carbon $vencimento = null, string $regra = 'igual', ?int $contribuicao = null, bool $comAjustes = true): array
     {
-        $contribuicao ??= $this->configuracoes->int('contribuicao_centavos');
+        // A conta do mês vira cobrança só com o valor dela; reforço do caixa é lançamento à parte.
+        $contribuicao ??= 0;
 
         $unidades = Unidade::query()->where('ativa', true)->ordemFixa()->get();
         $ids = array_values($unidades->map(fn (Unidade $u) => $u->id)->all());
@@ -143,8 +144,8 @@ class RateioService
 
     /**
      * Cada conta do condomínio vira o próprio rateio, já confirmado: divide igual entre as unidades
-     * ativas, cria as cobranças e avisa as unidades. A contribuição ao caixa e os ajustes pendentes
-     * entram só no primeiro rateio do mês.
+     * ativas, cria as cobranças e avisa as unidades. Não soma contribuição ao caixa (pedido do
+     * síndico: a cobrança é só a conta); ajustes pendentes entram no primeiro rateio do mês.
      */
     public function ratear(Fatura $fatura, User $autor): Rateio
     {
@@ -162,7 +163,7 @@ class RateioService
 
         return DB::transaction(function () use ($fatura, $mes, $autor) {
             $primeiroDoMes = ! Rateio::query()->where('mes_ref', $mes->toDateString())->lockForUpdate()->exists();
-            $calculo = $this->calcular(collect([$fatura]), null, 'igual', $primeiroDoMes ? null : 0, $primeiroDoMes);
+            $calculo = $this->calcular(collect([$fatura]), null, 'igual', 0, $primeiroDoMes);
 
             $rateio = Rateio::query()->create([
                 'mes_ref' => $mes,
