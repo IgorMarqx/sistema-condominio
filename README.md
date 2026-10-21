@@ -34,6 +34,63 @@ php artisan tinker --execute="echo (new PragmaRX\Google2FA\Google2FA)->getCurren
 
 Testes: `php artisan test` (rodam no MySQL `condominio_testing`, criado pelo compose).
 
+## Envio de e-mails
+
+Os avisos usam o driver nativo do [Resend no Laravel](https://laravel.com/docs/13.x/mail#resend-driver)
+pela API HTTPS, com `resend/resend-php`. Configure no `.env`:
+
+```dotenv
+MAIL_MAILER=resend
+RESEND_API_KEY=re_sua_chave
+MAIL_FROM_ADDRESS="avisos@seu-dominio.com.br"
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+Use uma chave válida e um remetente de domínio verificado no Resend. Os endereços acima são
+exemplos. Os avisos continuam na fila: mantenha `php artisan queue:work` em execução. Para
+desenvolvimento sem envio real, use `MAIL_MAILER=log`; os testes usam `array`.
+
+Depois de alterar o `.env` local, execute `php artisan config:clear` e
+`php artisan queue:restart`. Em produção, as variáveis chegam aos serviços por `env_file`:
+recrie os containers e atualize o cache de configuração:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --force-recreate app queue scheduler
+docker compose -f docker-compose.prod.yml exec app php artisan config:cache
+docker compose -f docker-compose.prod.yml exec app php artisan queue:restart
+```
+
+## Recuperação de senha
+
+O link **Esqueci a senha** nos acessos de apartamento e gestão abre a recuperação por CPF,
+e-mail de acesso ou número do apartamento. A tela oferece os contatos cadastrados com os
+destinos mascarados: e-mail pelo Resend e WhatsApp pelo Gzappy, como no sistema de tênis.
+
+Em **Minha conta → Recuperação de senha**, cadastre o e-mail e o celular com DDD e confirme
+a senha atual. Para a gestão, o e-mail de acesso já pode receber a recuperação; para unidades,
+cadastre os contatos próprios de recuperação. O e-mail de avisos não autoriza redefinir senha.
+Sem contato disponível, a tela orienta procurar o síndico.
+
+Configure o WhatsApp no `.env`:
+
+```dotenv
+GZAPPY_URL=https://v2-api.gzappy.com/
+GZAPPY_API_KEY=sua_chave
+GZAPPY_TIMEOUT=15
+GZAPPY_CONNECT_TIMEOUT=5
+```
+
+Os links de recuperação são enviados imediatamente para que uma falha do provedor permita
+tentar o outro canal. Valem por 60 minutos, são de uso único e exigem um intervalo de 60 segundos
+entre pedidos para a mesma conta. A nova senha encerra as sessões e remove as biometrias
+anteriores; o 2FA é preservado. Os tokens ficam com hash no banco, identificados pelo login
+também para apartamentos sem e-mail, usando o [broker do Laravel](https://laravel.com/docs/13.x/passwords).
+Os links usam `APP_URL`; configure-o com a URL pública correta.
+
+Execute as migrations antes de usar o recurso. Em produção, recrie os containers e atualize
+o cache conforme a seção de envio de e-mails. As chaves dos dois provedores e os contatos reais
+são necessários para validar a entrega externa.
+
 ## Instalação real
 
 ```bash
