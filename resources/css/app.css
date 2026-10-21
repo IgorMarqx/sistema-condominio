@@ -127,8 +127,21 @@
             linear-gradient(160deg, #1a3166 0%, #13254f 55%, #0b1734 100%);
     }
 
-    /* Arcos decorativos do fundo da tela de entrada. */
+    /*
+     * Arcos decorativos do fundo da tela de entrada. Ficam num ::before para somar ao fundo do
+     * elemento (topo-marinho, gradiente): como background-image, apagavam o gradiente marinho.
+     * O elemento precisa ser posicionado (relative/fixed); o isolation segura o z-index -1.
+     */
     .arcos {
+        isolation: isolate;
+    }
+
+    .arcos::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
         background-image:
             radial-gradient(
                 circle at 15% 105%,
