@@ -57,6 +57,8 @@ class RegistrarAcesso
             } elseif ($request->has('lembrar')) {
                 Aparelho::esquecer();
             }
+        } elseif ($biometria) {
+            Aparelho::lembrarGestao($user->login);
         }
 
         $this->auditoria->registrar('acesso.login', $user, null, ['metodo' => $biometria ? 'biometria' : 'senha'], new Ator(
