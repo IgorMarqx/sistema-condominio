@@ -199,8 +199,20 @@ class FaturaService
         $medidor = Medidor::query()->where('dono_tipo', 'condominio')->where('concessionaria', $concessionaria)
             ->where('ativo', true)->orderBy('id')->first();
 
+        // A internet não tem medidor nem PDF: o "medidor" é só o contrato do prédio, criado no primeiro lançamento.
+        if (! $medidor && ! $concessionaria->temLeitura()) {
+            $medidor = Medidor::query()->firstOrCreate(
+                ['concessionaria' => $concessionaria, 'identificador' => 'condominio'],
+                ['dono_tipo' => 'condominio', 'descricao' => 'Internet do condomínio', 'ativo' => true],
+            );
+        }
+
         if (! $medidor) {
             throw new RegraNegocio('Cadastre o medidor da '.$concessionaria->rotulo().' do condomínio em Medidores.');
+        }
+
+        if (! $concessionaria->temLeitura()) {
+            $consumo = null;
         }
 
         return DB::transaction(function () use ($medidor, $concessionaria, $mes, $valorCentavos, $consumo, $autor) {
