@@ -69,6 +69,13 @@ class RateioCobrancaTest extends TestCase
             ->assertSessionHas('sucesso');
     }
 
+    private function lancarAgua(): void
+    {
+        $this->medidor(null, Concessionaria::Cagepa, '1234567-8');
+        $this->actingAs($this->sindico())->post('/gestao/contas', ['concessionaria' => 'cagepa', 'valor' => '238,10', 'consumo' => '28'])
+            ->assertSessionHas('sucesso');
+    }
+
     private function cobrancaDo(string $numero): Cobranca
     {
         return Cobranca::query()->whereHas('unidade', fn ($q) => $q->where('numero', $numero))->firstOrFail();
@@ -309,7 +316,7 @@ class RateioCobrancaTest extends TestCase
         $this->assertNull($fatura->anexo_id);
         $pdf = fn () => UploadedFile::fake()->createWithContent('energisa-outubro.pdf', "%PDF-1.4\nconta de outubro\n");
 
-        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/pdf", ['arquivo' => $pdf()])
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/anexo", ['arquivo' => $pdf()])
             ->assertSessionHas('sucesso');
 
         $fatura->refresh()->load('anexo');
@@ -319,10 +326,21 @@ class RateioCobrancaTest extends TestCase
         $this->actingAs($this->sindico())->get("/arquivos/fatura/{$fatura->id}")->assertOk();
 
         // Não troca o PDF já anexado, nem aceita outro tipo de arquivo.
-        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/pdf", ['arquivo' => $pdf()])
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/anexo", ['arquivo' => $pdf()])
             ->assertSessionHas('erro');
-        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/pdf", ['arquivo' => UploadedFile::fake()->image('foto.jpg')])
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/anexo", ['arquivo' => UploadedFile::fake()->create('planilha.xlsx', 10)])
             ->assertSessionHasErrors('arquivo');
+
+        // Foto da conta também serve: a tela mostra a imagem no lugar do leitor de PDF.
+        $this->lancarAgua();
+        $agua = Fatura::query()->latest('id')->firstOrFail();
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$agua->id}/anexo", ['arquivo' => UploadedFile::fake()->image('cagepa.jpg')])
+            ->assertSessionHas('sucesso');
+        $this->assertSame('image/jpeg', $agua->refresh()->anexo->mime);
+        $this->assertStringEndsWith('.jpg', $agua->anexo->s3_key);
+        $this->actingAs($this->sindico())->get("/gestao/faturas/{$agua->id}")
+            ->assertInertia(fn ($p) => $p->where('fatura.tem_pdf', true)->where('fatura.anexo_imagem', true));
+        $this->actingAs($this->sindico())->get("/arquivos/fatura/{$agua->id}")->assertOk()->assertHeader('Content-Type', 'image/jpeg');
     }
 
     public function test_correcao_na_revisao_fica_auditada_com_motivo(): void
