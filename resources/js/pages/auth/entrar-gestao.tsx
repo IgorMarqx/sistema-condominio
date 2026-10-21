@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { LockKeyhole, Mail } from 'lucide-react';
 import Botao from '@/components/condominio/botao';
 import { Campo, Entrada } from '@/components/condominio/campo';
@@ -67,6 +67,12 @@ export default function EntrarGestao() {
                     >
                         Entrar
                     </Botao>
+                    <Link
+                        href="/recuperar-senha"
+                        className="block text-center text-sm font-semibold text-marinho-700"
+                    >
+                        Esqueci a senha
+                    </Link>
                 </form>
             </TelaEntrada>
         </>
