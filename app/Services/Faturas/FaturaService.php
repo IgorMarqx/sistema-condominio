@@ -333,6 +333,48 @@ class FaturaService
     }
 
     /**
+     * PDF da conta do condomínio anexado depois (conta lançada à mão no painel, sem o arquivo).
+     * Só completa: fatura que já tem PDF não troca de arquivo.
+     */
+    public function anexarPdf(Fatura $fatura, UploadedFile $arquivo, User $autor): Fatura
+    {
+        if (! $fatura->isCondominio()) {
+            throw new RegraNegocio('Só a conta do condomínio recebe PDF por aqui.');
+        }
+
+        if ($fatura->anexo_id !== null) {
+            throw new RegraNegocio('Esta fatura já tem PDF anexo.');
+        }
+
+        $conteudo = (string) file_get_contents($arquivo->getRealPath());
+
+        if (Anexo::query()->where('sha256', hash('sha256', $conteudo))->exists()) {
+            throw new RegraNegocio('Este PDF já está anexado a outra fatura.');
+        }
+
+        return DB::transaction(function () use ($fatura, $arquivo, $conteudo, $autor) {
+            $guardado = $this->armazenamento->guardarConteudo($conteudo, 'faturas', 'pdf');
+            $anexo = Anexo::query()->create([
+                'nome' => $this->armazenamento->nomeSeguro($arquivo->getClientOriginalName()),
+                's3_key' => $guardado['caminho'],
+                'sha256' => $guardado['sha256'],
+                'tamanho' => $guardado['tamanho'],
+                'mime' => 'application/pdf',
+                'enviado_por' => $autor->id,
+            ]);
+
+            $fatura->update(['anexo_id' => $anexo->id]);
+
+            $this->auditoria->registrar('fatura.pdf_anexado', $fatura, null, [
+                'anexo' => $anexo->id,
+                'sha256' => $anexo->sha256,
+            ]);
+
+            return $fatura;
+        });
+    }
+
+    /**
      * LGPD: a unidade apaga o próprio histórico individual. As contas do condomínio permanecem.
      */
     public function excluirHistoricoIndividual(Unidade $unidade): int
