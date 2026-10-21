@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArquivosController;
 use App\Http\Controllers\Auth\AparelhoController;
+use App\Http\Controllers\Auth\RecuperacaoSenhaController;
 use App\Http\Controllers\Auth\SenhaController;
 use App\Http\Controllers\CaixaController;
 use App\Http\Controllers\ContaController;
@@ -12,6 +13,11 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::middleware('guest')->group(function () {
+    Route::get('recuperar-senha', [RecuperacaoSenhaController::class, 'show'])->name('password.request');
+    Route::post('recuperar-senha/canais', [RecuperacaoSenhaController::class, 'canais'])->middleware('throttle:10,1')->name('password.canais');
+    Route::post('recuperar-senha/enviar', [RecuperacaoSenhaController::class, 'enviar'])->middleware('throttle:6,1')->name('password.enviar');
+    Route::get('redefinir-senha/{token}', [RecuperacaoSenhaController::class, 'edit'])->name('password.reset');
+    Route::post('redefinir-senha', [RecuperacaoSenhaController::class, 'update'])->middleware('throttle:6,1')->name('password.update');
     Route::get('entrar/gestao', fn () => Inertia::render('auth/entrar-gestao'))->name('login.gestao');
     Route::post('aparelho/esquecer', [AparelhoController::class, 'esquecer'])->name('aparelho.esquecer');
 });
@@ -25,6 +31,7 @@ Route::middleware('auth')->group(function () {
     Route::get('conta', [ContaController::class, 'show'])->name('conta');
     Route::put('conta/email-avisos', [ContaController::class, 'emailAvisos'])->name('conta.email-avisos');
     Route::put('conta/nome', [ContaController::class, 'nome'])->name('conta.nome');
+    Route::put('conta/recuperacao', [ContaController::class, 'recuperacao'])->middleware('throttle:6,1')->name('conta.recuperacao');
 
     Route::get('avisos', [AvisosController::class, 'index'])->name('avisos');
     Route::post('avisos/lidas', [AvisosController::class, 'lidas'])->name('avisos.lidas');
