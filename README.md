@@ -131,7 +131,11 @@ Telas: `resources/js/pages` (`unidade/*`, `gestao/*`, `auth/*`). Componentes vis
   `.env` de produção fica em `DEPLOY_PATH` e precisa de `APP_URL`, `DB_USERNAME` e `DB_PASSWORD`.
 - Banco: RDS ou MySQL do host. Aplique `database/sql/permissoes.sql`: o usuário da aplicação não
   tem `UPDATE`/`DELETE` em `lancamentos_caixa` e `audit_log`.
-- S3 com versionamento + Object Lock (modo governance) para `CONDOMINIO_DISCO=s3`.
+- Anexos no S3, como no sistema-ponto: preencha `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+  `AWS_DEFAULT_REGION` e `AWS_BUCKET` no `.env` e refaça o deploy (o disco vira `s3` sozinho).
+  Bucket privado, com versionamento e Object Lock (modo governance). Os arquivos que já estavam
+  no volume `storage` são copiados com `php artisan condominio:arquivos-para-s3` (rode uma vez,
+  com `--dry-run` antes para conferir).
 - Backup diário cifrado do banco às 03:00 (`BackupBanco`, retenção de 90 dias).
 
 ## Lacunas conhecidas
