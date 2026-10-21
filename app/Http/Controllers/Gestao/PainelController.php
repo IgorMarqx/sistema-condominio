@@ -80,6 +80,7 @@ class PainelController extends Controller
                 'contribuicao' => Rateio::query()->where('mes_ref', $hoje->toDateString())->exists() ? 0 : $configuracoes->int('contribuicao_centavos'),
                 'energisa' => $this->conta(Concessionaria::Energisa, $hoje),
                 'cagepa' => $this->conta(Concessionaria::Cagepa, $hoje),
+                'internet' => $this->conta(Concessionaria::Internet, $hoje),
             ],
             'cobrancas' => $mes ? [
                 'mes' => $mes->format('Y-m'),
@@ -95,8 +96,11 @@ class PainelController extends Controller
                             'andar' => $u->andar,
                             'status' => $this->statusDaUnidade($lista),
                             'vencida' => $lista->contains(fn (Cobranca $c) => $c->vencida()),
+                            'total' => (int) $lista->sum('valor_centavos'),
                             'cobrancas' => $lista->map(fn (Cobranca $c) => CobrancaDados::resumo($c) + [
                                 'em_aberto' => $pagamentos->emAberto($c),
+                                // Quais contas a cobrança cobre: o painel mostra energia, água e internet em linhas fixas.
+                                'tipos' => $c->itens->pluck('tipo')->unique()->values(),
                             ])->values(),
                         ];
                     })->values(),
@@ -105,7 +109,7 @@ class PainelController extends Controller
     }
 
     /**
-     * @return array{medidor_id: int|null, unidade_medida: string, lancada: array{valor: int|null, consumo: string|null}|null}
+     * @return array{medidor_id: int|null, unidade_medida: string|null, lancada: array{valor: int|null, consumo: string|null}|null}
      */
     private function conta(Concessionaria $concessionaria, Carbon $mes): array
     {
@@ -128,7 +132,7 @@ class PainelController extends Controller
     }
 
     /**
-     * Paga só quando todas as cobranças do mês (energia e água) estão pagas.
+     * Paga só quando todas as cobranças do mês (energia, água e internet) estão pagas.
      *
      * @param  Collection<int, Cobranca>  $lista
      */
