@@ -37,9 +37,10 @@ class ArquivosController extends Controller
     public function pagamento(Request $request, Pagamento $pagamento): StreamedResponse
     {
         $user = $request->user();
+        abort_unless($pagamento->comprovante_s3 !== null, 404);
         abort_unless($user->vePainelGestao() || $pagamento->cobranca->unidade_id === $user->unidade_id, 404);
 
-        return $this->entregar($pagamento->comprovante_s3, $pagamento->comprovante_nome);
+        return $this->entregar($pagamento->comprovante_s3, (string) $pagamento->comprovante_nome);
     }
 
     public function lancamento(Request $request, LancamentoCaixa $lancamento): StreamedResponse
