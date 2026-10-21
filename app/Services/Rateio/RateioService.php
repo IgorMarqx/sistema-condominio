@@ -31,23 +31,7 @@ class RateioService
     ) {}
 
     /**
-     * Faturas do condomínio confirmadas e ainda fora de qualquer rateio.
-     *
-     * @return Collection<int, Fatura>
-     */
-    public function faturasDisponiveis(): Collection
-    {
-        return Fatura::query()
-            ->doCondominio()
-            ->where('status', StatusFatura::Confirmada)
-            ->whereDoesntHave('rateios')
-            ->with(['medidor', 'competencia'])
-            ->orderBy('vencimento')
-            ->get();
-    }
-
-    /**
-     * Calcula sem gravar. Mesma conta que o rascunho e a confirmação usam.
+     * Calcula sem gravar. É a mesma conta que o ratear() grava.
      *
      * @param  Collection<int, Fatura>  $faturas
      * @return array{
@@ -57,9 +41,8 @@ class RateioService
      *     recebem_resto: list<string>
      * }
      */
-    public function calcular(Collection $faturas, ?Carbon $vencimento = null, ?string $regra = null, ?int $contribuicao = null): array
+    public function calcular(Collection $faturas, ?Carbon $vencimento = null, string $regra = 'igual', ?int $contribuicao = null, bool $comAjustes = true): array
     {
-        $regra ??= (string) $this->configuracoes->get('regra_rateio');
         $contribuicao ??= $this->configuracoes->int('contribuicao_centavos');
 
         $unidades = Unidade::query()->where('ativa', true)->ordemFixa()->get();
@@ -105,7 +88,8 @@ class RateioService
             }
         }
 
-        $ajustes = AjusteRateio::query()->whereNull('cobranca_item_id')->whereIn('unidade_id', $ids)->orderBy('id')->get();
+        // Sem ajustes: whereIn vazio não traz nenhum.
+        $ajustes = AjusteRateio::query()->whereNull('cobranca_item_id')->whereIn('unidade_id', $comAjustes ? $ids : [])->orderBy('id')->get();
 
         foreach ($ajustes as $ajuste) {
             $itens[$ajuste->unidade_id][] = [
@@ -159,82 +143,54 @@ class RateioService
     }
 
     /**
-     * @param  list<int>  $faturaIds
+     * Cada conta do condomínio vira o próprio rateio, já confirmado: divide igual entre as unidades
+     * ativas, cria as cobranças e avisa as unidades. A contribuição ao caixa e os ajustes pendentes
+     * entram só no primeiro rateio do mês.
      */
-    public function gerarRascunho(Carbon $mes, array $faturaIds, User $autor, ?Carbon $vencimento = null): Rateio
+    public function ratear(Fatura $fatura, User $autor): Rateio
     {
-        $mes = Mes::ref($mes);
+        $fatura->loadMissing(['medidor', 'competencia']);
 
-        if (Rateio::query()->where('mes_ref', $mes)->where('status', 'confirmado')->exists()) {
-            throw new RegraNegocio('O rateio de '.Mes::rotulo($mes).' já foi confirmado. Correções entram como ajuste no mês seguinte.');
+        if (! $fatura->isCondominio() || $fatura->status !== StatusFatura::Confirmada) {
+            throw new RegraNegocio('Só conta do condomínio confirmada gera cobrança.');
         }
 
-        $faturas = $this->faturasDisponiveis()->whereIn('id', $faturaIds)->values();
-
-        if ($faturas->isEmpty()) {
-            throw new RegraNegocio('Escolha ao menos uma fatura do condomínio confirmada.');
+        if ($fatura->rateios()->exists()) {
+            throw new RegraNegocio('Esta conta já gerou as cobranças.');
         }
 
-        $calculo = $this->calcular($faturas, $vencimento);
+        $mes = Mes::ref($fatura->competencia->mes_ref);
 
-        return DB::transaction(function () use ($mes, $faturas, $calculo, $autor) {
-            Rateio::query()->where('mes_ref', $mes)->where('status', 'rascunho')->get()->each(function (Rateio $antigo) {
-                $antigo->faturas()->detach();
-                $antigo->delete();
-            });
+        return DB::transaction(function () use ($fatura, $mes, $autor) {
+            $primeiroDoMes = ! Rateio::query()->where('mes_ref', $mes->toDateString())->lockForUpdate()->exists();
+            $calculo = $this->calcular(collect([$fatura]), null, 'igual', $primeiroDoMes ? null : 0, $primeiroDoMes);
 
             $rateio = Rateio::query()->create([
                 'mes_ref' => $mes,
-                'regra' => $calculo['regra'],
+                'regra' => 'igual',
                 'total_centavos' => $calculo['total_faturas'],
                 'contribuicao_centavos' => $calculo['contribuicao'],
                 'resto_centavos' => $calculo['resto'],
                 'vencimento' => $calculo['vencimento'],
                 'detalhe_json' => $calculo,
-                'status' => 'rascunho',
+                'status' => 'confirmado',
                 'criado_por' => $autor->id,
+                'confirmado_por' => $autor->id,
+                'confirmado_em' => now(),
             ]);
 
-            $rateio->faturas()->attach($faturas->pluck('id'));
-
-            $this->auditoria->registrar('rateio.rascunho', $rateio, null, [
-                'mes' => $mes->format('Y-m'),
-                'faturas' => $faturas->pluck('id')->all(),
-                'total_geral' => $calculo['total_geral'],
-            ]);
-
-            return $rateio;
-        });
-    }
-
-    /**
-     * Confirma o rascunho: recalcula, cria as cobranças e trava o rateio.
-     */
-    public function confirmar(Rateio $rateio, User $autor): Rateio
-    {
-        if ($rateio->isConfirmado()) {
-            throw new RegraNegocio('Este rateio já foi confirmado.');
-        }
-
-        return DB::transaction(function () use ($rateio, $autor) {
-            $rateio = Rateio::query()->whereKey($rateio->id)->lockForUpdate()->firstOrFail();
-            $faturas = $rateio->faturas()->with(['medidor', 'competencia'])->get();
-
-            if ($faturas->contains(fn (Fatura $f) => $f->status !== StatusFatura::Confirmada)) {
-                throw new RegraNegocio('Uma das faturas deixou de estar confirmada. Gere o rateio de novo.');
-            }
-
-            $calculo = $this->calcular($faturas, $rateio->vencimento, $rateio->regra, $rateio->contribuicao_centavos);
+            $rateio->faturas()->attach($fatura->id);
+            $sigla = $fatura->medidor->concessionaria === Concessionaria::Energisa ? 'E' : 'A';
 
             foreach ($calculo['unidades'] as $unidadeId => $dados) {
                 $cobranca = Cobranca::query()->create([
                     'rateio_id' => $rateio->id,
                     'unidade_id' => $unidadeId,
-                    'mes_ref' => $rateio->mes_ref,
+                    'mes_ref' => $mes,
                     'valor_centavos' => $dados['total'],
                     'vencimento' => $rateio->vencimento,
                     'status' => $dados['total'] > 0 ? StatusCobranca::Aberta : StatusCobranca::Paga,
-                    'pix_txid' => 'COND'.$rateio->mes_ref->format('Ym').'AP'.$dados['numero'],
+                    'pix_txid' => 'COND'.$mes->format('Ym').$sigla.'AP'.$dados['numero'],
                 ]);
 
                 foreach ($dados['itens'] as $item) {
@@ -251,20 +207,13 @@ class RateioService
                 }
             }
 
-            $rateio->update([
-                'status' => 'confirmado',
-                'detalhe_json' => $calculo,
-                'resto_centavos' => $calculo['resto'],
-                'confirmado_por' => $autor->id,
-                'confirmado_em' => now(),
-            ]);
-
-            foreach ($faturas as $fatura) {
-                $fatura->competencia->avancarPara(StatusCompetencia::Rateada);
-            }
+            $fatura->competencia->avancarPara(StatusCompetencia::Rateada);
+            $servico = $fatura->medidor->concessionaria->servico();
 
             $this->auditoria->registrar('rateio.confirmado', $rateio, null, [
-                'mes' => $rateio->mes_ref->format('Y-m'),
+                'mes' => $mes->format('Y-m'),
+                'fatura' => $fatura->id,
+                'servico' => $servico,
                 'vencimento' => $rateio->vencimento->toDateString(),
                 'cobrancas' => collect($calculo['unidades'])->mapWithKeys(fn ($u) => [$u['numero'] => $u['total']])->all(),
                 'recebem_resto' => $calculo['recebem_resto'],
@@ -274,7 +223,7 @@ class RateioService
                 $this->notificador->unidade(
                     $unidadeId,
                     'cobranca_gerada',
-                    'Cobrança de '.Mes::nome($rateio->mes_ref).' disponível',
+                    'Cobrança de '.mb_strtolower($servico).' de '.Mes::nome($mes).' disponível',
                     Dinheiro::formatar($dados['total']).' · vence '.$rateio->vencimento->format('d/m'),
                     '/cobranca',
                     'cobranca:'.$rateio->id.':'.$unidadeId,
@@ -282,19 +231,6 @@ class RateioService
             }
 
             return $rateio->refresh();
-        });
-    }
-
-    public function descartar(Rateio $rateio): void
-    {
-        if ($rateio->isConfirmado()) {
-            throw new RegraNegocio('Rateio confirmado não pode ser descartado; use um ajuste no mês seguinte.');
-        }
-
-        DB::transaction(function () use ($rateio) {
-            $rateio->faturas()->detach();
-            $this->auditoria->registrar('rateio.descartado', $rateio, ['mes' => $rateio->mes_ref->format('Y-m')]);
-            $rateio->delete();
         });
     }
 
