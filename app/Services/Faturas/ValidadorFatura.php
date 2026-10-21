@@ -2,9 +2,7 @@
 
 namespace App\Services\Faturas;
 
-use App\Models\EmailRecebido;
 use App\Models\Fatura;
-use App\Services\Configuracoes;
 use App\Support\Dinheiro;
 
 /**
@@ -15,12 +13,10 @@ class ValidadorFatura
 {
     public const CONFIANCA_MINIMA = 0.8;
 
-    public function __construct(private readonly Configuracoes $configuracoes) {}
-
     /**
      * @return list<array{regra: string, ok: bool, mensagem: string}>
      */
-    public function validar(Fatura $fatura, ?EmailRecebido $email = null): array
+    public function validar(Fatura $fatura): array
     {
         $resultado = [];
 
@@ -66,12 +62,6 @@ class ValidadorFatura
                     ? ['regra' => 'consumo', 'ok' => true, 'mensagem' => 'Consumo dentro da média dos últimos 6 meses']
                     : ['regra' => 'consumo', 'ok' => false, 'mensagem' => 'Consumo mais de 3× a média dos últimos 6 meses ('.number_format($media, 0, ',', '.').' '.$fatura->unidade_medida.').'];
             }
-        }
-
-        if ($email !== null) {
-            $resultado[] = $this->remetenteReconhecido($email, $fatura)
-                ? ['regra' => 'remetente', 'ok' => true, 'mensagem' => 'Remetente verificado (SPF/DKIM)']
-                : ['regra' => 'remetente', 'ok' => false, 'mensagem' => 'Remetente não reconhecido ou sem SPF/DKIM válido ('.($email->remetente ?? 'desconhecido').').'];
         }
 
         if ($fatura->confianca !== null && (float) $fatura->confianca < self::CONFIANCA_MINIMA) {
@@ -120,17 +110,5 @@ class ValidadorFatura
         }
 
         return (int) round(((float) $fatura->consumo / $media - 1) * 100);
-    }
-
-    public function remetenteReconhecido(EmailRecebido $email, Fatura $fatura): bool
-    {
-        $autenticado = $email->spf === 'pass' || $email->dkim === 'pass';
-        $dominio = strtolower((string) substr(strrchr((string) $email->remetente, '@') ?: '', 1));
-        $chave = 'remetentes_'.$fatura->medidor->concessionaria->value;
-        $aceitos = (array) $this->configuracoes->get($chave, []);
-
-        $conhecido = collect($aceitos)->contains(fn (string $d) => $dominio === strtolower($d) || str_ends_with($dominio, '.'.strtolower($d)));
-
-        return $autenticado && $conhecido;
     }
 }
