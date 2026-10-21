@@ -1,20 +1,13 @@
-import { Download, Share, SquarePlus, X } from 'lucide-react';
-import { useState, useSyncExternalStore } from 'react';
-import type { ReactNode } from 'react';
+import { Download, X } from 'lucide-react';
+import { useState } from 'react';
 import Botao from '@/components/condominio/botao';
-import Folha from '@/components/condominio/folha';
+import { useInstalarApp } from '@/components/condominio/instalar-app';
 import LogoPredio from '@/components/condominio/logo-predio';
 import {
     Tooltip,
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-    assinarInstalacao,
-    estadoInstalacao,
-    estadoInstalacaoServidor,
-    pedirInstalacao,
-} from '@/lib/pwa';
 
 const CHAVE_FECHADO = 'convite-instalar-fechado';
 
@@ -48,29 +41,15 @@ export function reabrirConviteInstalar(): void {
 /**
  * Convite para instalar o app: cartão com X logo depois do login; fechado, vira um botão
  * redondo de download no canto, acima da barra inferior. Some quando já está instalado ou
- * quando o navegador não oferece instalação (nem pedido nativo, nem iPhone).
+ * quando o navegador não oferece instalação (nem pedido nativo, nem iPhone). Fora disso, o
+ * cartão "Aplicativo" das Configurações e da Minha conta mostra os passos à mão.
  */
 export default function ConviteInstalar() {
-    const { instalado, nativo, ios } = useSyncExternalStore(
-        assinarInstalacao,
-        estadoInstalacao,
-        estadoInstalacaoServidor,
-    );
+    const { instalado, nativo, ios, instalar, folha } = useInstalarApp();
     const [fechado, setFechado] = useState(foiFechado);
-    const [passosIos, setPassosIos] = useState(false);
 
     if (instalado || (!nativo && !ios)) {
         return null;
-    }
-
-    function instalar(): void {
-        if (nativo) {
-            void pedirInstalacao();
-
-            return;
-        }
-
-        setPassosIos(true);
     }
 
     function fechar(): void {
@@ -134,48 +113,7 @@ export default function ConviteInstalar() {
                 </aside>
             )}
 
-            <Folha
-                aberta={passosIos}
-                aoMudar={setPassosIos}
-                titulo="Adicione à tela de início"
-                descricao="No iPhone ou iPad, a instalação é feita pelo Safari."
-                rodape={
-                    <Botao
-                        type="button"
-                        tom="marinho"
-                        largo
-                        onClick={() => setPassosIos(false)}
-                        className="mb-1"
-                    >
-                        Entendi
-                    </Botao>
-                }
-            >
-                <ol className="space-y-3 pb-2 text-sm leading-6 text-texto">
-                    <Passo numero={1}>
-                        Toque em Compartilhar{' '}
-                        <Share className="mx-0.5 inline size-4 align-text-bottom text-marinho-700" />{' '}
-                        na barra do Safari.
-                    </Passo>
-                    <Passo numero={2}>
-                        Escolha “Adicionar à Tela de Início”{' '}
-                        <SquarePlus className="mx-0.5 inline size-4 align-text-bottom text-marinho-700" />
-                        .
-                    </Passo>
-                    <Passo numero={3}>Confirme em “Adicionar”.</Passo>
-                </ol>
-            </Folha>
+            {folha}
         </>
-    );
-}
-
-function Passo({ numero, children }: { numero: number; children: ReactNode }) {
-    return (
-        <li className="flex gap-3">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-ouro-500 text-xs font-extrabold text-marinho-900">
-                {numero}
-            </span>
-            <span>{children}</span>
-        </li>
     );
 }
