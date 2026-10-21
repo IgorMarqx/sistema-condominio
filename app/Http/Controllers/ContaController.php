@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ContatosRecuperacaoRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
 use App\Services\Auditoria\Auditoria;
+use App\Services\RecuperacaoSenhaService;
 use App\Support\Aparelho;
+use App\Support\ContatoRecuperacao;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -44,6 +47,10 @@ class ContaController extends Controller
                 'obrigatorio' => $user->isAdmin(),
             ],
             'email_avisos' => $user->unidade?->email_avisos,
+            'contatos_recuperacao' => [
+                'email_recuperacao' => ContatoRecuperacao::email($user),
+                'telefone' => $user->telefone,
+            ],
             'nome_informado' => $request->session()->get('nome_informado'),
         ]);
     }
@@ -73,5 +80,12 @@ class ContaController extends Controller
         }
 
         return back()->with('sucesso', $nome ? 'Suas ações aparecem como '.$request->user()->login.' — '.$nome.'.' : 'Nome removido desta sessão.');
+    }
+
+    public function recuperacao(ContatosRecuperacaoRequest $request, RecuperacaoSenhaService $service): RedirectResponse
+    {
+        $service->salvarContatos($request->user(), $request->validated('email_recuperacao'), $request->validated('telefone'));
+
+        return back()->with('sucesso', 'Contatos de recuperação salvos.');
     }
 }
