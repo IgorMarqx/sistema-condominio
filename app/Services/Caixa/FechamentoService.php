@@ -175,10 +175,11 @@ class FechamentoService
             ->with(['medidor', 'anexo'])
             ->get();
 
-        $rateio = Rateio::query()->where('mes_ref', $mes->toDateString())->where('status', 'confirmado')->first();
-        $cobrancas = $rateio
-            ? Cobranca::query()->where('rateio_id', $rateio->id)->with(['unidade', 'pagamentos' => fn ($q) => $q->where('status', 'confirmado')])->get()->sortBy(fn ($c) => [$c->unidade->andar, $c->unidade->numero])
-            : collect();
+        // Um rateio por conta (energia, água): a prestação lista as cobranças de todos.
+        $rateios = Rateio::query()->where('mes_ref', $mes->toDateString())->where('status', 'confirmado')->orderBy('id')->get();
+        $cobrancas = Cobranca::query()->whereIn('rateio_id', $rateios->pluck('id'))
+            ->with(['unidade', 'itens', 'pagamentos' => fn ($q) => $q->where('status', 'confirmado')])->get()
+            ->sortBy(fn ($c) => [$c->unidade->andar, $c->unidade->numero, $c->id]);
 
         $lancamentos = LancamentoCaixa::query()
             ->whereBetween('data', [$inicio, $fim])
@@ -194,7 +195,7 @@ class FechamentoService
             'mes' => Mes::rotulo($mes),
             'fechamento' => $fechamento,
             'faturas' => $faturas,
-            'rateio' => $rateio,
+            'rateios' => $rateios,
             'cobrancas' => $cobrancas,
             'lancamentos' => $lancamentos,
             'saldoInicial' => $saldoInicial,
