@@ -56,8 +56,9 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
-            'report' => false,
+            // Falha de gravação no bucket estoura: comprovante não pode "sumir" em silêncio.
+            'throw' => true,
+            'report' => true,
         ],
 
     ],
