@@ -103,6 +103,7 @@ Route::middleware('auth')->group(function () {
         Route::post('fechamento', [Gestao\FechamentoController::class, 'store'])->name('fechamento.store');
 
         Route::get('unidades', [Gestao\UnidadesController::class, 'index'])->name('unidades');
+        Route::post('unidades', [Gestao\UnidadesController::class, 'store'])->name('unidades.store');
         Route::post('unidades/{unidade}/senha', [Gestao\UnidadesController::class, 'senha'])->name('unidades.senha');
         Route::patch('unidades/{unidade}', [Gestao\UnidadesController::class, 'update'])->name('unidades.update');
 
