@@ -12,12 +12,10 @@ use App\Models\Cobranca;
 use App\Models\Fatura;
 use App\Models\Medidor;
 use App\Models\Pagamento;
-use App\Models\Rateio;
 use App\Models\Unidade;
 use App\Services\Caixa\CaixaService;
 use App\Services\Caixa\FechamentoService;
 use App\Services\Cobrancas\PagamentoService;
-use App\Services\Configuracoes;
 use App\Support\Mes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -27,7 +25,7 @@ use Inertia\Response;
 
 class PainelController extends Controller
 {
-    public function __invoke(Request $request, CaixaService $caixa, PagamentoService $pagamentos, FechamentoService $fechamentos, Configuracoes $configuracoes): Response
+    public function __invoke(Request $request, CaixaService $caixa, PagamentoService $pagamentos, FechamentoService $fechamentos): Response
     {
         $hoje = Mes::ref(today());
         // Mês atual; sem cobrança nele ainda, o último mês que teve.
@@ -76,8 +74,6 @@ class PainelController extends Controller
             'contas' => [
                 'mes_nome' => Mes::nome($hoje),
                 'ocupados' => $ocupados,
-                // A contribuição ao caixa vai junto da primeira conta lançada no mês.
-                'contribuicao' => Rateio::query()->where('mes_ref', $hoje->toDateString())->exists() ? 0 : $configuracoes->int('contribuicao_centavos'),
                 'energisa' => $this->conta(Concessionaria::Energisa, $hoje),
                 'cagepa' => $this->conta(Concessionaria::Cagepa, $hoje),
                 'internet' => $this->conta(Concessionaria::Internet, $hoje),
