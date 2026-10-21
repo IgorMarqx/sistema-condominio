@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\Unidade;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -116,5 +117,29 @@ class AcessoTest extends TestCase
         $this->assertTrue(Hash::check($senha, $morador->refresh()->password));
         $this->assertTrue($morador->deve_trocar_senha);
         $this->assertDatabaseHas('audit_log', ['acao' => 'acesso.senha_redefinida', 'entidade_id' => $morador->id]);
+    }
+
+    public function test_sindico_adiciona_unidade_com_senha_provisoria(): void
+    {
+        $resposta = $this->actingAs($this->sindico())->post('/gestao/unidades', ['numero' => '104', 'fracao_ideal' => '7.5']);
+
+        $senha = $resposta->getSession()->get('senha_gerada')['senha'];
+        $unidade = Unidade::query()->where('numero', '104')->firstOrFail();
+        $this->assertSame(1, $unidade->andar);
+        $this->assertTrue($unidade->ativa);
+        $this->assertSame('7.5000', $unidade->fracao_ideal);
+        $this->assertTrue(Hash::check($senha, $unidade->acesso->password));
+        $this->assertTrue($unidade->acesso->deve_trocar_senha);
+        $this->assertDatabaseHas('audit_log', ['acao' => 'unidade.criada', 'entidade_id' => $unidade->id]);
+
+        // Já aparece na grade do login.
+        auth()->logout();
+        $this->get('/login')->assertInertia(fn ($page) => $page->where('apartamentos', fn ($andares) => collect($andares)->flatten()->contains('104')));
+
+        // Número repetido ou fora do formato não entra.
+        $this->actingAs($this->sindico())->post('/gestao/unidades', ['numero' => '104'])->assertSessionHasErrors('numero');
+        $this->actingAs($this->sindico())->post('/gestao/unidades', ['numero' => '04'])->assertSessionHasErrors('numero');
+        $this->actingAs(User::factory()->conselho()->create())->post('/gestao/unidades', ['numero' => '105'])->assertForbidden();
+        $this->assertSame(13, Unidade::query()->count());
     }
 }
