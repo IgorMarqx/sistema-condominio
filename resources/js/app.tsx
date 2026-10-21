@@ -5,7 +5,7 @@ import LayoutEntrada from '@/layouts/layout-entrada';
 import LayoutGestao from '@/layouts/layout-gestao';
 import LayoutPerfil from '@/layouts/layout-perfil';
 import LayoutUnidade from '@/layouts/layout-unidade';
-import { registrarServiceWorker } from '@/lib/pwa';
+import { capturarInstalacao, registrarServiceWorker } from '@/lib/pwa';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Condomínio';
 
@@ -37,4 +37,5 @@ void createInertiaApp({
     },
 });
 
+capturarInstalacao();
 registrarServiceWorker();
