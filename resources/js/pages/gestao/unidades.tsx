@@ -1,5 +1,5 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { Fingerprint, KeyRound, Printer } from 'lucide-react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Fingerprint, KeyRound, Plus, Printer } from 'lucide-react';
 import { useState } from 'react';
 import Botao from '@/components/condominio/botao';
 import BotaoCopiar from '@/components/condominio/botao-copiar';
@@ -42,6 +42,7 @@ export default function Unidades({ unidades, soma_fracoes, acessos }: Props) {
     const { auth, flash } = usePage().props;
     const [redefinir, setRedefinir] = useState<Unidade | null>(null);
     const [editar, setEditar] = useState<Unidade | null>(null);
+    const [nova, setNova] = useState(false);
     const [enviando, setEnviando] = useState(false);
     const senha = flash.senha_gerada;
 
@@ -51,6 +52,20 @@ export default function Unidades({ unidades, soma_fracoes, acessos }: Props) {
             <TopoTela
                 titulo="Unidades e senhas"
                 contexto={`${unidades.length} apartamentos`}
+                acao={
+                    auth.user?.pode_editar && (
+                        <Botao
+                            tamanho="sm"
+                            tom="marinho"
+                            onClick={() => setNova(true)}
+                        >
+                            <Plus /> Adicionar
+                            <span className="-ml-1.5 hidden sm:inline">
+                                unidade
+                            </span>
+                        </Botao>
+                    )
+                }
             />
 
             <div className="space-y-4 px-4 lg:px-0">
@@ -218,6 +233,8 @@ export default function Unidades({ unidades, soma_fracoes, acessos }: Props) {
                 </p>
             </Folha>
 
+            <NovaUnidade aberta={nova} aoFechar={() => setNova(false)} />
+
             {editar && (
                 <EditarUnidade
                     key={editar.id}
@@ -296,6 +313,93 @@ function EditarUnidade({
                     />
                     Unidade ativa (entra no rateio)
                 </label>
+            </div>
+        </Folha>
+    );
+}
+
+function NovaUnidade({
+    aberta,
+    aoFechar,
+}: {
+    aberta: boolean;
+    aoFechar: () => void;
+}) {
+    const form = useForm({ numero: '', fracao_ideal: '' });
+
+    const fechar = () => {
+        form.reset();
+        form.clearErrors();
+        aoFechar();
+    };
+
+    return (
+        <Folha
+            aberta={aberta}
+            aoMudar={(v) => !v && fechar()}
+            titulo="Adicionar unidade"
+            descricao="Entra ativa no rateio e na tela de login. A senha provisória aparece uma vez só."
+            rodape={
+                <Botao
+                    tamanho="lg"
+                    largo
+                    carregando={form.processing}
+                    disabled={form.data.numero.length < 3}
+                    onClick={() => {
+                        form.transform((dados) => ({
+                            numero: dados.numero,
+                            fracao_ideal:
+                                dados.fracao_ideal === ''
+                                    ? null
+                                    : dados.fracao_ideal.replace(',', '.'),
+                        }));
+                        form.post('/gestao/unidades', {
+                            preserveScroll: true,
+                            onSuccess: fechar,
+                        });
+                    }}
+                >
+                    <Plus /> Adicionar e gerar senha
+                </Botao>
+            }
+        >
+            <div className="space-y-4 pb-2">
+                <Campo
+                    rotulo="Número do apartamento"
+                    htmlFor="numero-unidade"
+                    erro={form.errors.numero}
+                    ajuda="O andar sai do número: 104 fica no 1º andar."
+                >
+                    <Entrada
+                        id="numero-unidade"
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="104"
+                        value={form.data.numero}
+                        onChange={(e) =>
+                            form.setData(
+                                'numero',
+                                e.target.value.replace(/\D/g, ''),
+                            )
+                        }
+                    />
+                </Campo>
+                <Campo
+                    rotulo="Fração ideal (%)"
+                    detalhe="(opcional)"
+                    htmlFor="fracao-unidade"
+                    erro={form.errors.fracao_ideal}
+                >
+                    <Entrada
+                        id="fracao-unidade"
+                        inputMode="decimal"
+                        placeholder="8,3333"
+                        value={form.data.fracao_ideal}
+                        onChange={(e) =>
+                            form.setData('fracao_ideal', e.target.value)
+                        }
+                    />
+                </Campo>
             </div>
         </Folha>
     );
