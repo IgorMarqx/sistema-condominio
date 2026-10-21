@@ -16,6 +16,7 @@ import Folha from '@/components/condominio/folha';
 import IconeServico from '@/components/condominio/icone-servico';
 import Selo from '@/components/condominio/selo';
 import { diaMes, dinheiro, lerCentavos } from '@/lib/formato';
+import { mascararDecimal, mascararMoeda } from '@/lib/mascaras';
 import { cn } from '@/lib/utils';
 import type {
     Cobranca,
@@ -26,7 +27,7 @@ import type {
 
 type Conta = {
     medidor_id: number | null;
-    unidade_medida: string;
+    unidade_medida: string | null;
     lancada: { valor: number | null; consumo: string | null } | null;
 };
 
@@ -35,7 +36,8 @@ type UnidadePainel = {
     andar: number;
     status: StatusCobranca | null;
     vencida: boolean;
-    cobrancas: (Cobranca & { em_aberto: number })[];
+    total: number;
+    cobrancas: (Cobranca & { em_aberto: number; tipos: string[] })[];
 };
 
 type Props = {
@@ -60,6 +62,7 @@ type Props = {
         contribuicao: number;
         energisa: Conta;
         cagepa: Conta;
+        internet: Conta;
     };
     cobrancas: {
         mes: string;
@@ -69,9 +72,26 @@ type Props = {
     } | null;
 };
 
-const NOMES: Record<ConcessionariaId, { rotulo: string; servico: string }> = {
-    energisa: { rotulo: 'Energisa', servico: 'energia' },
-    cagepa: { rotulo: 'Cagepa', servico: 'água' },
+const CONTAS: ConcessionariaId[] = ['energisa', 'cagepa', 'internet'];
+const COM_PDF = ['energisa', 'cagepa'] as const;
+
+const NOMES: Record<
+    ConcessionariaId,
+    { rotulo: string; servico: string; tipo: string; titulo: string }
+> = {
+    energisa: {
+        rotulo: 'Energisa',
+        servico: 'energia',
+        tipo: 'energia',
+        titulo: 'Energia',
+    },
+    cagepa: { rotulo: 'Cagepa', servico: 'água', tipo: 'agua', titulo: 'Água' },
+    internet: {
+        rotulo: 'Internet',
+        servico: 'internet',
+        tipo: 'internet',
+        titulo: 'Internet',
+    },
 };
 
 function iniciais(nome: string): string {
@@ -152,7 +172,7 @@ export default function Painel({
                     <section>
                         <TituloSecao>Contas de {contas.mes_nome}</TituloSecao>
                         <div className="grid grid-cols-2 gap-2">
-                            {(['energisa', 'cagepa'] as const).map((c) => (
+                            {COM_PDF.map((c) => (
                                 <BotaoConta
                                     key={c}
                                     concessionaria={c}
@@ -160,13 +180,21 @@ export default function Painel({
                                     aoAbrir={() => setLancar(c)}
                                 />
                             ))}
-                            {(['energisa', 'cagepa'] as const).map((c) => (
+                            {COM_PDF.map((c) => (
                                 <BotaoImportar
                                     key={c}
                                     concessionaria={c}
                                     medidorId={contas[c].medidor_id}
                                 />
                             ))}
+                            {/* Internet é mensalidade: não tem PDF para ler, ocupa a linha toda. */}
+                            <div className="col-span-2 grid">
+                                <BotaoConta
+                                    concessionaria="internet"
+                                    conta={contas.internet}
+                                    aoAbrir={() => setLancar('internet')}
+                                />
+                            </div>
                         </div>
                     </section>
                 )}
@@ -236,6 +264,11 @@ export default function Painel({
                                         <p className="text-[15px] font-extrabold text-texto">
                                             {u.numero}
                                         </p>
+                                        {u.cobrancas.length > 0 && (
+                                            <p className="tabular text-xs font-semibold text-texto/80">
+                                                {dinheiro(u.total)}
+                                            </p>
+                                        )}
                                         <p className="text-[11px] font-bold">
                                             {rotuloBloco(u.status, u.vencida)}
                                         </p>
@@ -311,6 +344,7 @@ function BotaoConta({
                                 {dinheiro(lancada.valor)}
                             </span>
                             {lancada.consumo &&
+                                conta.unidade_medida &&
                                 `${lancada.consumo} ${conta.unidade_medida}`}
                         </>
                     ) : (
@@ -424,7 +458,11 @@ function LancarConta({
         <Folha
             aberta={concessionaria !== null}
             aoMudar={(aberta) => !aberta && fechar()}
-            titulo={`Conta da ${NOMES[atual].rotulo}`}
+            titulo={
+                atual === 'internet'
+                    ? 'Conta da internet'
+                    : `Conta da ${NOMES[atual].rotulo}`
+            }
             descricao={`${contas.mes_nome} · dividida igualmente entre os ${ocupados.length} apartamentos ocupados`}
             rodape={
                 <Botao
@@ -435,6 +473,9 @@ function LancarConta({
                     onClick={() => {
                         form.transform((dados) => ({
                             ...dados,
+                            consumo: dados.consumo
+                                .replace(',', '.')
+                                .replace(/\.$/, ''),
                             concessionaria: atual,
                         }));
                         form.post('/gestao/contas', {
@@ -448,32 +489,54 @@ function LancarConta({
             }
         >
             <div className="space-y-4 pb-1">
-                <div className="grid grid-cols-2 gap-3">
-                    <Campo rotulo="Valor (R$)" erro={form.errors.valor}>
+                <div
+                    className={cn(
+                        'grid gap-3',
+                        unidade ? 'grid-cols-2' : 'grid-cols-1',
+                    )}
+                >
+                    <Campo
+                        rotulo="Valor (R$)"
+                        htmlFor="valor-conta"
+                        erro={form.errors.valor}
+                    >
                         <Entrada
+                            id="valor-conta"
                             inputMode="decimal"
-                            enterKeyHint="next"
+                            enterKeyHint={unidade ? 'next' : 'done'}
                             placeholder="0,00"
                             value={form.data.valor}
                             onChange={(e) =>
-                                form.setData('valor', e.target.value)
+                                form.setData(
+                                    'valor',
+                                    mascararMoeda(e.target.value),
+                                )
                             }
                         />
                     </Campo>
-                    <Campo
-                        rotulo={`Consumo (${unidade})`}
-                        erro={form.errors.consumo}
-                    >
-                        <Entrada
-                            inputMode="decimal"
-                            enterKeyHint="done"
-                            placeholder={atual === 'energisa' ? '512' : '28'}
-                            value={form.data.consumo}
-                            onChange={(e) =>
-                                form.setData('consumo', e.target.value)
-                            }
-                        />
-                    </Campo>
+                    {unidade && (
+                        <Campo
+                            rotulo={`Consumo (${unidade})`}
+                            htmlFor="consumo-conta"
+                            erro={form.errors.consumo}
+                        >
+                            <Entrada
+                                id="consumo-conta"
+                                inputMode="decimal"
+                                enterKeyHint="done"
+                                placeholder={
+                                    atual === 'energisa' ? '512' : '28'
+                                }
+                                value={form.data.consumo}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'consumo',
+                                        mascararDecimal(e.target.value, 3),
+                                    )
+                                }
+                            />
+                        </Campo>
+                    )}
                 </div>
 
                 {divisao ? (
@@ -570,72 +633,55 @@ function PagamentoUnidade({
             }
         >
             <div className="space-y-2.5 pb-2">
-                {atual?.cobrancas.map((c) => {
-                    const paga = c.status === 'paga';
-                    const aberta = c.status === 'aberta';
+                {CONTAS.map((conta) => {
+                    const lista = cobrancasDa(atual?.cobrancas ?? [], conta);
 
-                    return (
+                    return lista.length > 0 ? (
+                        lista.map((c) => (
+                            <LinhaCobranca
+                                key={c.id}
+                                cobranca={c}
+                                podeEditar={podeEditar}
+                                enviando={enviando}
+                                aoMarcar={marcar}
+                            />
+                        ))
+                    ) : cobreOutra(atual?.cobrancas ?? [], conta) ? null : (
                         <div
-                            key={c.id}
-                            className="space-y-3 rounded-2xl border border-linha p-3.5"
+                            key={conta}
+                            className="flex items-center gap-3 rounded-2xl border border-dashed border-linha p-3.5"
                         >
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                    <p className="text-sm font-extrabold">
-                                        {c.servico}
-                                    </p>
-                                    <p className="tabular text-xs text-suave">
-                                        {dinheiro(c.valor)} · vence{' '}
-                                        {diaMes(c.vencimento)}
-                                        {c.em_aberto > 0 &&
-                                            c.em_aberto < c.valor &&
-                                            ` · falta ${dinheiro(c.em_aberto)}`}
-                                    </p>
-                                </div>
-                                <SeloStatus
-                                    status={c.status}
-                                    vencida={c.vencida}
-                                />
-                            </div>
-
-                            {c.status === 'aguardando_confirmacao' && (
-                                <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                                    A unidade enviou o comprovante. Confira no
-                                    extrato antes de marcar como pago.
+                            <IconeServico
+                                concessionaria={conta}
+                                className="size-9 opacity-60"
+                            />
+                            <div className="min-w-0">
+                                <p className="text-sm font-extrabold text-suave">
+                                    {NOMES[conta].titulo}
                                 </p>
-                            )}
-
-                            {podeEditar && (
-                                <div className="grid grid-cols-2 gap-2">
-                                    <Botao
-                                        tom={aberta ? 'marinho' : 'branco'}
-                                        tamanho="sm"
-                                        // Selecionado: travado, mas com a cor cheia (não parece desabilitado).
-                                        className="disabled:opacity-100"
-                                        disabled={aberta}
-                                        carregando={
-                                            enviando === `${c.id}:nao-paga`
-                                        }
-                                        onClick={() => marcar(c.id, 'nao-paga')}
-                                    >
-                                        Não pago
-                                    </Botao>
-                                    <Botao
-                                        tom={paga ? 'marinho' : 'ouro'}
-                                        tamanho="sm"
-                                        className="disabled:opacity-100"
-                                        disabled={paga}
-                                        carregando={enviando === `${c.id}:paga`}
-                                        onClick={() => marcar(c.id, 'paga')}
-                                    >
-                                        {paga && <Check />}
-                                        Pago
-                                    </Botao>
-                                </div>
-                            )}
+                                <p className="text-xs text-suave">
+                                    Conta de {mesNome} ainda não lançada.
+                                </p>
+                            </div>
                         </div>
                     );
                 })}
+                {/* Cobrança sem conta (só contribuição ou ajuste) também aparece para ser marcada. */}
+                {atual?.cobrancas
+                    .filter((c) =>
+                        CONTAS.every(
+                            (conta) => !c.tipos.includes(NOMES[conta].tipo),
+                        ),
+                    )
+                    .map((c) => (
+                        <LinhaCobranca
+                            key={c.id}
+                            cobranca={c}
+                            podeEditar={podeEditar}
+                            enviando={enviando}
+                            aoMarcar={marcar}
+                        />
+                    ))}
                 {podeEditar && (
                     <p className="px-1 text-xs text-suave">
                         "Pago" lança a entrada no caixa com a data de hoje. "Não
@@ -644,6 +690,98 @@ function PagamentoUnidade({
                 )}
             </div>
         </Folha>
+    );
+}
+
+type CobrancaPainel = UnidadePainel['cobrancas'][number];
+
+/** Cobranças daquela conta, na ordem em que foram geradas. */
+function cobrancasDa(
+    cobrancas: CobrancaPainel[],
+    conta: ConcessionariaId,
+): CobrancaPainel[] {
+    const tipo = NOMES[conta].tipo;
+
+    // Cobrança antiga com energia e água juntas fica na linha da primeira conta que ela cobre.
+    return cobrancas.filter(
+        (c) =>
+            c.tipos.includes(tipo) &&
+            CONTAS.find((outra) => c.tipos.includes(NOMES[outra].tipo)) ===
+                conta,
+    );
+}
+
+/** A conta já está dentro de uma cobrança antiga combinada (ex.: "Energia e água"). */
+function cobreOutra(
+    cobrancas: CobrancaPainel[],
+    conta: ConcessionariaId,
+): boolean {
+    return cobrancas.some((c) => c.tipos.includes(NOMES[conta].tipo));
+}
+
+function LinhaCobranca({
+    cobranca: c,
+    podeEditar,
+    enviando,
+    aoMarcar,
+}: {
+    cobranca: CobrancaPainel;
+    podeEditar: boolean;
+    enviando: string | null;
+    aoMarcar: (cobranca: number, acao: 'paga' | 'nao-paga') => void;
+}) {
+    const paga = c.status === 'paga';
+    const aberta = c.status === 'aberta';
+
+    return (
+        <div className="space-y-3 rounded-2xl border border-linha p-3.5">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-sm font-extrabold">{c.servico}</p>
+                    <p className="tabular text-xs text-suave">
+                        {dinheiro(c.valor)} · vence {diaMes(c.vencimento)}
+                        {c.em_aberto > 0 &&
+                            c.em_aberto < c.valor &&
+                            ` · falta ${dinheiro(c.em_aberto)}`}
+                    </p>
+                </div>
+                <SeloStatus status={c.status} vencida={c.vencida} />
+            </div>
+
+            {c.status === 'aguardando_confirmacao' && (
+                <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                    A unidade enviou o comprovante. Confira no extrato antes de
+                    marcar como pago.
+                </p>
+            )}
+
+            {podeEditar && (
+                <div className="grid grid-cols-2 gap-2">
+                    <Botao
+                        tom={aberta ? 'marinho' : 'branco'}
+                        tamanho="sm"
+                        // Selecionado: travado, mas com a cor cheia (não parece desabilitado).
+                        className="disabled:opacity-100"
+                        disabled={aberta}
+                        carregando={enviando === `${c.id}:nao-paga`}
+                        onClick={() => aoMarcar(c.id, 'nao-paga')}
+                    >
+                        Não pago
+                    </Botao>
+                    <Botao
+                        tom={paga ? 'marinho' : 'ouro'}
+                        tamanho="sm"
+                        className="disabled:opacity-100"
+                        disabled={paga}
+                        carregando={enviando === `${c.id}:paga`}
+                        onClick={() => aoMarcar(c.id, 'paga')}
+                    >
+                        {paga && <Check />}
+                        Pago
+                    </Botao>
+                </div>
+            )}
+        </div>
     );
 }
 
