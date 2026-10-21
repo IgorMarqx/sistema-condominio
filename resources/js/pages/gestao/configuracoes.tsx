@@ -4,12 +4,10 @@ import Cartao, { TituloSecao } from '@/components/condominio/cartao';
 import { Campo, Entrada } from '@/components/condominio/campo';
 import { CartaoAplicativo } from '@/components/condominio/instalar-app';
 import TopoTela from '@/components/condominio/topo-tela';
-import { valor } from '@/lib/formato';
 
 type Valores = {
     nome_edificio: string;
     endereco: string | null;
-    contribuicao_centavos: number;
     dias_antecedencia: number;
     pix_chave: string | null;
     pix_recebedor: string | null;
@@ -24,7 +22,6 @@ export default function Configuracoes({ valores }: { valores: Valores }) {
     const form = useForm({
         nome_edificio: valores.nome_edificio,
         endereco: valores.endereco ?? '',
-        contribuicao: valor(valores.contribuicao_centavos),
         dias_antecedencia: String(valores.dias_antecedencia),
         pix_chave: valores.pix_chave ?? '',
         pix_recebedor: valores.pix_recebedor ?? '',
@@ -82,19 +79,6 @@ export default function Configuracoes({ valores }: { valores: Valores }) {
                 <section>
                     <TituloSecao>Rateio e cobrança</TituloSecao>
                     <Cartao className="grid gap-3 sm:grid-cols-2">
-                        <Campo
-                            rotulo="Contribuição mensal ao caixa (R$)"
-                            erro={form.errors.contribuicao}
-                        >
-                            <Entrada
-                                disabled={desabilitado}
-                                inputMode="decimal"
-                                value={form.data.contribuicao}
-                                onChange={(e) =>
-                                    form.setData('contribuicao', e.target.value)
-                                }
-                            />
-                        </Campo>
                         <Campo
                             rotulo="Vencer quantos dias antes da concessionária"
                             erro={form.errors.dias_antecedencia}
