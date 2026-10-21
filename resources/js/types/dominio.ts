@@ -26,6 +26,7 @@ export type Fatura = {
     origem: 'email' | 'upload';
     recebida_em: string;
     tem_pdf: boolean;
+    anexo_imagem: boolean;
     medidor: {
         id: number;
         identificador: string;
