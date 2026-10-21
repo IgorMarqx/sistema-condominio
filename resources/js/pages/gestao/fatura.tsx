@@ -459,12 +459,11 @@ function Pagar({
             aberta={aberta}
             aoMudar={aoMudar}
             titulo={`Pagar ${fatura.concessionaria_rotulo}`}
-            descricao={`Saída de ${dinheiro(fatura.valor)} da conta corrente, com o comprovante do banco.`}
+            descricao={`Saída de ${dinheiro(fatura.valor)} da conta corrente. O comprovante do banco é opcional.`}
             rodape={
                 <Botao
                     tamanho="lg"
                     largo
-                    disabled={!form.data.comprovante}
                     carregando={form.processing}
                     onClick={() =>
                         form.post(`/gestao/faturas/${fatura.id}/pagar`, {
@@ -490,6 +489,7 @@ function Pagar({
                     arquivo={form.data.comprovante}
                     aoEscolher={(f) => form.setData('comprovante', f)}
                     titulo="Comprovante do pagamento"
+                    apoio="Opcional · foto ou PDF"
                     erro={form.errors.comprovante}
                 />
             </div>
