@@ -164,7 +164,7 @@ return [
     */
 
     'features' => [
-        // Sem cadastro nem recuperação por e-mail: senha nova só pelo síndico.
+        // Sem cadastro público; recuperação com escolha de canal nas rotas da aplicação.
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,
