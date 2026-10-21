@@ -17,6 +17,7 @@ use App\Services\Rateio\RateioService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -299,6 +300,29 @@ class RateioCobrancaTest extends TestCase
             'conta' => 'corrente', 'data' => '2026-10-12', 'tipo' => 'saida', 'valor' => '10,00',
             'categoria' => 'manutencao', 'descricao' => 'Lâmpada',
         ])->assertSessionHasErrors('comprovante');
+    }
+
+    public function test_pdf_da_conta_lancada_no_painel_anexado_depois(): void
+    {
+        $this->lancarEnergia();
+        $fatura = Fatura::query()->firstOrFail();
+        $this->assertNull($fatura->anexo_id);
+        $pdf = fn () => UploadedFile::fake()->createWithContent('energisa-outubro.pdf', "%PDF-1.4\nconta de outubro\n");
+
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/pdf", ['arquivo' => $pdf()])
+            ->assertSessionHas('sucesso');
+
+        $fatura->refresh()->load('anexo');
+        $this->assertSame('energisa-outubro.pdf', $fatura->anexo->nome);
+        Storage::disk('local')->assertExists($fatura->anexo->s3_key);
+        $this->assertDatabaseHas('audit_log', ['acao' => 'fatura.pdf_anexado', 'entidade_id' => $fatura->id]);
+        $this->actingAs($this->sindico())->get("/arquivos/fatura/{$fatura->id}")->assertOk();
+
+        // Não troca o PDF já anexado, nem aceita outro tipo de arquivo.
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/pdf", ['arquivo' => $pdf()])
+            ->assertSessionHas('erro');
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$fatura->id}/pdf", ['arquivo' => UploadedFile::fake()->image('foto.jpg')])
+            ->assertSessionHasErrors('arquivo');
     }
 
     public function test_correcao_na_revisao_fica_auditada_com_motivo(): void
