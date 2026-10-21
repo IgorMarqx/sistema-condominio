@@ -19,12 +19,28 @@ final class CobrancaDados
             'mes' => $cobranca->mes_ref->format('Y-m'),
             'mes_rotulo' => Mes::rotulo($cobranca->mes_ref),
             'mes_nome' => Mes::nome($cobranca->mes_ref),
+            'servico' => self::servico($cobranca),
             'valor' => $cobranca->valor_centavos,
             'vencimento' => $cobranca->vencimento->toDateString(),
             'vencida' => $cobranca->vencida(),
             'status' => $cobranca->status->value,
             'status_rotulo' => $cobranca->status->rotulo(),
         ];
+    }
+
+    /**
+     * Do que é a cobrança: cada conta do condomínio gera a sua (as antigas juntavam energia e água).
+     */
+    public static function servico(Cobranca $cobranca): string
+    {
+        $tipos = $cobranca->itens->pluck('tipo');
+
+        return match (true) {
+            $tipos->contains('energia') && $tipos->contains('agua') => 'Energia e água',
+            $tipos->contains('energia') => 'Energia',
+            $tipos->contains('agua') => 'Água',
+            default => 'Contribuição',
+        };
     }
 
     /**
