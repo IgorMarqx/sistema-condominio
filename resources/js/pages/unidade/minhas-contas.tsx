@@ -1,13 +1,5 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import {
-    ChevronRight,
-    Lock,
-    Mail,
-    ShieldCheck,
-    Trash2,
-    TriangleAlert,
-    Upload,
-} from 'lucide-react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Lock, ShieldCheck, Trash2, TriangleAlert, Upload } from 'lucide-react';
 import { useState } from 'react';
 import Botao from '@/components/condominio/botao';
 import BotaoCopiar from '@/components/condominio/botao-copiar';
@@ -37,7 +29,6 @@ import type {
     Fatura,
     FaturaDetalhe,
     PontoConsumo,
-    SituacaoRecebimento,
 } from '@/types';
 
 type Servico = {
@@ -56,7 +47,6 @@ type Props = {
         rotulo: string;
         tem_senha_pdf: boolean;
     }[];
-    recebimento: SituacaoRecebimento;
     autoriza_admin: boolean;
     limite_anomalia: number;
 };
@@ -69,12 +59,6 @@ export default function MinhasContas(props: Props) {
     const [aberta, setAberta] = useState<Fatura | null>(null);
     const [excluir, setExcluir] = useState(false);
 
-    const situacao = (c: ConcessionariaId) => {
-        const s = props.recebimento[c].situacao;
-
-        return s === 'ativo' ? 'ativa' : s === 'manual' ? 'manual' : 'pendente';
-    };
-
     return (
         <>
             <Head title="Minhas contas" />
@@ -86,15 +70,6 @@ export default function MinhasContas(props: Props) {
                     </span>
                 }
                 titulo="Minhas contas"
-                acao={
-                    <Link
-                        href="/receber-faturas"
-                        className="flex size-10 items-center justify-center rounded-full border border-linha bg-white text-texto"
-                        aria-label="Receber faturas por e-mail"
-                    >
-                        <Mail className="size-[18px]" />
-                    </Link>
-                }
             />
 
             <div className="space-y-4 px-4">
@@ -108,22 +83,6 @@ export default function MinhasContas(props: Props) {
                         aoEnviar={() => setUpload(true)}
                     />
                 ))}
-
-                <Link href="/receber-faturas" className="block">
-                    <div className="topo-marinho flex items-center gap-3 rounded-2xl p-4 text-white">
-                        <Mail className="size-5 text-ouro-500" />
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-extrabold">
-                                Receber faturas automaticamente
-                            </p>
-                            <p className="truncate text-xs text-white/70">
-                                Energisa {situacao('energisa')} · Cagepa{' '}
-                                {situacao('cagepa')}
-                            </p>
-                        </div>
-                        <ChevronRight className="size-4" />
-                    </div>
-                </Link>
 
                 <Botao tom="branco" largo onClick={() => setUpload(true)}>
                     <Upload /> Enviar PDF de uma fatura
