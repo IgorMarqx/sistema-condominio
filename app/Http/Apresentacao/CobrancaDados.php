@@ -39,6 +39,7 @@ final class CobrancaDados
             $tipos->contains('energia') && $tipos->contains('agua') => 'Energia e água',
             $tipos->contains('energia') => 'Energia',
             $tipos->contains('agua') => 'Água',
+            $tipos->contains('internet') => 'Internet',
             default => 'Contribuição',
         };
     }
