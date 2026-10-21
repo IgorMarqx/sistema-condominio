@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Unidade;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -141,5 +142,45 @@ class AcessoTest extends TestCase
         $this->actingAs($this->sindico())->post('/gestao/unidades', ['numero' => '04'])->assertSessionHasErrors('numero');
         $this->actingAs(User::factory()->conselho()->create())->post('/gestao/unidades', ['numero' => '105'])->assertForbidden();
         $this->assertSame(13, Unidade::query()->count());
+    }
+
+    public function test_biometria_da_gestao_abre_a_tela_de_biometria_no_celular(): void
+    {
+        $sindico = $this->sindico();
+        $celular = ['HTTP_USER_AGENT' => 'Mozilla/5.0 (Linux; Android 14) Mobile Safari/537.36'];
+
+        // Com senha: entra pelo 2FA e o aparelho não fica marcado.
+        $this->post('/login', ['login' => $sindico->login, 'password' => 'password'])->assertRedirect('/two-factor-challenge');
+
+        // Biometria cadastrada neste aparelho: o cookie passa a lembrar o e-mail da gestão.
+        DB::table('passkeys')->insert(['user_id' => $sindico->id, 'name' => 'Android', 'credential_id' => 'credencial-sindico', 'credential' => '{}']);
+        $resposta = $this->actingAs($sindico)->postJson('/aparelho/biometria')->assertOk();
+        $cookie = collect($resposta->headers->getCookies())->first(fn ($c) => $c->getName() === 'condominio_aparelho')->getValue();
+        $this->assertSame($sindico->login, json_decode($cookie, true)['gestao']);
+        auth()->logout();
+
+        $this->withUnencryptedCookie('condominio_aparelho', $cookie)->withServerVariables($celular)->get('/login')
+            ->assertInertia(fn ($p) => $p->where('biometriaGestao.nome', 'Síndico')->where('biometriaGestao.papel', 'Síndico'));
+
+        // No computador, ou sem passkey, volta à tela normal.
+        $this->withUnencryptedCookie('condominio_aparelho', $cookie)->withServerVariables(['HTTP_USER_AGENT' => 'Mozilla/5.0 (X11; Linux x86_64) Chrome/141'])->get('/login')
+            ->assertInertia(fn ($p) => $p->where('biometriaGestao', null));
+        DB::table('passkeys')->delete();
+        $this->withUnencryptedCookie('condominio_aparelho', $cookie)->withServerVariables($celular)->get('/login')
+            ->assertInertia(fn ($p) => $p->where('biometriaGestao', null));
+    }
+
+    public function test_trocar_apartamento_preserva_a_biometria_da_gestao(): void
+    {
+        $cookie = json_encode(['apto' => '302', 'nome' => null, 'biometria' => false, 'gestao' => 'sindico@condominio.local', 'entrada' => 'gestao']);
+
+        $resposta = $this->withUnencryptedCookie('condominio_aparelho', $cookie)->post('/aparelho/esquecer');
+        $novo = json_decode(collect($resposta->headers->getCookies())->first(fn ($c) => $c->getName() === 'condominio_aparelho')->getValue(), true);
+        $this->assertSame(['gestao' => 'sindico@condominio.local', 'entrada' => 'gestao'], $novo);
+
+        $resposta = $this->withUnencryptedCookie('condominio_aparelho', $cookie)->post('/aparelho/esquecer', ['gestao' => true]);
+        $novo = json_decode(collect($resposta->headers->getCookies())->first(fn ($c) => $c->getName() === 'condominio_aparelho')->getValue(), true);
+        $this->assertArrayNotHasKey('gestao', $novo);
+        $this->assertSame('302', $novo['apto']);
     }
 }
