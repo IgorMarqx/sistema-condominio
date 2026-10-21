@@ -59,7 +59,6 @@ type Props = {
     contas: {
         mes_nome: string;
         ocupados: string[];
-        contribuicao: number;
         energisa: Conta;
         cagepa: Conta;
         internet: Conta;
@@ -571,13 +570,6 @@ function LancarConta({
                                 </div>
                             ))}
                         </div>
-                        {contas.contribuicao > 0 && (
-                            <p className="text-xs text-suave">
-                                Primeira conta do mês: cada apartamento paga
-                                também {dinheiro(contas.contribuicao)} de
-                                contribuição ao caixa.
-                            </p>
-                        )}
                     </div>
                 ) : (
                     <p className="text-sm text-suave">
