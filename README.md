@@ -4,7 +4,7 @@ Energia, água, caixa e auditoria de um prédio de 12 unidades (101–403) em Jo
 administradora. Implementa o documento de implementação v1.1 (13/10/2026) e os mockups de tela.
 
 **Stack:** Laravel 13 · Inertia v3 + React 19 · Tailwind v4 · Fortify (2FA TOTP e passkeys) ·
-MySQL 8 · Redis + Horizon · S3 + SES · dompdf · PWA.
+MySQL 8 · Redis · S3 · dompdf · PWA.
 
 ## Rodar localmente
 
@@ -15,7 +15,7 @@ composer install && npm ci
 php artisan migrate --seed      # prédio + cenário de demonstração dos mockups
 npm run build                   # ou: npm run dev
 php artisan serve --port=8010
-php artisan queue:work --queue=ingestao,default   # processa e-mails recebidos
+php artisan queue:work          # e-mails de aviso
 ```
 
 Acessos da demonstração (só em `APP_ENV=local`):
@@ -51,9 +51,9 @@ em **Configurações**. Os medidores das unidades se cadastram sozinhos com a pr
 | Seção do documento             | Onde está                                                                                                                                                                    |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2 · Perfis e login por unidade | `FortifyServiceProvider`, `Support/Aparelho` (lembrar aparelho), `Listeners/RegistrarAcesso` (nome informado + `sessoes_log`), middlewares `SomenteGestao`/`ExigeTrocaSenha` |
-| 4 · Ingestão por e-mail        | `Services/Ingestao`: `RecebedorEmail` → fila `ingestao` → `ProcessadorEmail` → `ProcessadorPdf` → extratores; webhooks em `Webhooks/EmailController`                         |
+| 4 · Faturas                    | `Services/Faturas` (conta lançada no painel ou PDF importado) e `Services/Ingestao/ProcessadorPdf` → extratores                                                              |
 | 5 · Calendário e jobs          | `Jobs/*` agendados em `routes/console.php` (horário de Brasília), `Services/Faturas/CompetenciaService`                                                                      |
-| 6 · Rateio                     | `Services/Rateio` (centavos inteiros; resto 1 centavo por unidade na ordem fixa, continuando entre energia e água)                                                           |
+| 6 · Rateio                     | `Services/Rateio`: cada conta gera as cobranças na hora, em divisão igual entre as unidades ativas (centavos inteiros; resto 1 centavo por unidade na ordem fixa)            |
 | 7 · Caixa                      | `Services/Caixa` (append-only, estorno, transferência, fechamento com PDF)                                                                                                   |
 | 8 · Auditoria                  | `Services/Auditoria` (hash encadeado; a cabeça da cadeia é travada com `FOR UPDATE`)                                                                                         |
 | 9 · LGPD                       | `ArquivosController` (quem pode abrir cada arquivo), privacidade e exclusão em Minhas contas                                                                                 |
@@ -61,33 +61,17 @@ em **Configurações**. Os medidores das unidades se cadastram sozinhos com a pr
 Telas: `resources/js/pages` (`unidade/*`, `gestao/*`, `auth/*`). Componentes visuais dos mockups em
 `resources/js/components/condominio`.
 
-## Receber faturas por e-mail (AWS SES)
-
-Modelo mental: o SES é a "caixa de correio" do domínio `faturas.<seu-domínio>`. Todo e-mail que
-chega vira um arquivo `.eml` no S3, e o SES avisa o sistema por HTTPS. O sistema lê o arquivo,
-descobre de qual apartamento é pelo endereço (`ap302-x8vd@…`) e processa.
-
-1. **Região:** use uma região com SES inbound (ex.: `us-east-1`).
-2. **SES → Identities → Create identity → Domain:** `faturas.seudominio.com.br`; publique os
-   registros DKIM no DNS.
-3. **DNS:** registro `MX 10 inbound-smtp.us-east-1.amazonaws.com` em `faturas.seudominio.com.br`.
-4. **SNS → Create topic** (Standard) `condominio-faturas`; **Create subscription** HTTPS para
-   `https://seu-site/webhooks/email/sns`. O sistema confirma a assinatura sozinho quando o ARN
-   está em `FATURAS_SNS_TOPIC_ARN`.
-5. **SES → Email receiving → Create rule set → Create rule:** recipients = `faturas.seudominio.com.br`;
-   ação **S3** (bucket dos e-mails, prefixo `raw/`) com **SNS topic** = o tópico do passo 4.
-   Ative o rule set.
-6. **.env:** `FATURAS_DOMINIO`, `FATURAS_SNS_TOPIC_ARN`, `AWS_*`, `FATURAS_SES_DISCO=s3`.
-7. **Teste:** mande um e-mail com um PDF para o endereço do condomínio (tela "Receber faturas").
-
-Alternativa sem SES: Mailgun "store and forward" ou Cloudflare Email Worker apontando para
-`/webhooks/email/bruto/<FATURAS_WEBHOOK_TOKEN>`. Para testar sem nada disso:
-`php artisan faturas:importar-eml arquivo.eml --para=ap302-xxxx@faturas.seudominio.com.br`.
-
 ## Produção
 
-- `docker-compose.prod.yml` + `docker/php/Dockerfile` (php-fpm com `poppler-utils`, `qpdf` e cliente
-  MySQL), Horizon na fila `ingestao,default` e `schedule:work`.
+- **Deploy automático** a cada push na `main` (`.github/workflows/deploy.yml`, mesmo modelo do
+  sistema-ponto): o Actions monta as imagens `app` e `nginx` do `Dockerfile` (php-fpm 8.3 com
+  `poppler-utils`, `qpdf` e cliente MySQL), publica no GHCR e, por SSH, faz `git reset` no servidor,
+  `docker compose -f docker-compose.prod.yml up`, `migrate --force`, `optimize` e `queue:restart`.
+- Serviços: `app` (php-fpm), `queue` (`queue:work`), `scheduler` (`schedule:work`, jobs diários) e
+  `nginx`, ligado à rede externa `public-proxy-network` (o proxy com TLS fica fora deste compose).
+- Secrets do repositório: `GHCR_USERNAME`, `GHCR_TOKEN`, `DEPLOY_HOST`, `DEPLOY_USER`,
+  `DEPLOY_SSH_KEY`, `DEPLOY_PATH` e, opcionais, `DEPLOY_PORT` e `DEPLOY_BRANCH`. No servidor, o
+  `.env` de produção fica em `DEPLOY_PATH` e precisa de `APP_URL`, `DB_USERNAME` e `DB_PASSWORD`.
 - Banco: RDS ou MySQL do host. Aplique `database/sql/permissoes.sql`: o usuário da aplicação não
   tem `UPDATE`/`DELETE` em `lancamentos_caixa` e `audit_log`.
 - S3 com versionamento + Object Lock (modo governance) para `CONDOMINIO_DISCO=s3`.
