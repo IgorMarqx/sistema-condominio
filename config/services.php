@@ -22,6 +22,13 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'gzappy' => [
+        'url' => env('GZAPPY_URL', 'https://v2-api.gzappy.com/'),
+        'api_key' => env('GZAPPY_API_KEY'),
+        'timeout' => (int) env('GZAPPY_TIMEOUT', 15),
+        'connect_timeout' => (int) env('GZAPPY_CONNECT_TIMEOUT', 5),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
