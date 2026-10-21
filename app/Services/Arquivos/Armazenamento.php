@@ -6,10 +6,11 @@ use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
- * PDFs de fatura, comprovantes e e-mails brutos. Em produção o disco é S3 com versionamento
- * e Object Lock: nada é sobrescrito. Todo arquivo é guardado com o SHA-256 do conteúdo.
+ * PDFs de fatura, comprovantes e e-mails brutos. Em produção o disco é S3 (AWS_*, como no
+ * sistema-ponto) com versionamento e Object Lock: nada é sobrescrito. Todo arquivo é guardado com o SHA-256 do conteúdo.
  */
 class Armazenamento
 {
@@ -26,8 +27,8 @@ class Armazenamento
         $sha = hash('sha256', $conteudo);
         $caminho = trim($pasta, '/').'/'.now()->format('Y/m').'/'.$sha.'.'.ltrim($extensao, '.');
 
-        if (! $this->disco()->exists($caminho)) {
-            $this->disco()->put($caminho, $conteudo);
+        if (! $this->disco()->exists($caminho) && ! $this->disco()->put($caminho, $conteudo)) {
+            throw new RuntimeException('Não foi possível guardar o arquivo ('.$caminho.').');
         }
 
         return ['caminho' => $caminho, 'sha256' => $sha, 'tamanho' => strlen($conteudo)];
