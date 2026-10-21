@@ -49,8 +49,9 @@ class CaixaService
             throw new RegraNegocio('O valor do lançamento precisa ser maior que zero.');
         }
 
-        // Exceção única: o recebimento de cobrança que o síndico marca como pago no painel.
-        if ($comprovante === null && $origemTipo !== 'pagamento') {
+        // Exceções: o recebimento que o síndico marca como pago no painel e o pagamento de conta
+        // do condomínio (o comprovante do banco é opcional; a fatura já é a origem do lançamento).
+        if ($comprovante === null && ! in_array($origemTipo, ['pagamento', 'fatura'], true)) {
             throw new RegraNegocio('Todo lançamento precisa de comprovante.');
         }
 
