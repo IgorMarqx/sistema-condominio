@@ -1,6 +1,13 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { Check, ChevronDown, FileText, Maximize2, X } from 'lucide-react';
-import { useState } from 'react';
+import {
+    Check,
+    ChevronDown,
+    FileText,
+    Maximize2,
+    Upload,
+    X,
+} from 'lucide-react';
+import { useRef, useState } from 'react';
 import Botao from '@/components/condominio/botao';
 import Cartao from '@/components/condominio/cartao';
 import { AreaTexto, Campo, Entrada } from '@/components/condominio/campo';
@@ -70,7 +77,7 @@ export default function RevisarFatura({ fatura, pagamento }: Props) {
             />
 
             <div className="space-y-4 px-4 lg:grid lg:grid-cols-[1.1fr_1fr] lg:items-start lg:gap-5 lg:space-y-0 lg:px-0">
-                <PreviaPdf fatura={fatura} />
+                <PreviaPdf fatura={fatura} podeAnexar={podeEditar} />
 
                 <div className="space-y-4">
                     <Cartao className="px-4 py-1">
@@ -271,14 +278,84 @@ export default function RevisarFatura({ fatura, pagamento }: Props) {
     );
 }
 
-function PreviaPdf({ fatura }: { fatura: FaturaDetalhe }) {
-    if (!fatura.tem_pdf) {
-        return (
-            <div className="flex h-40 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#c9d3ea] bg-white text-sm text-suave">
+/**
+ * Conta lançada à mão no painel: o PDF pode ser anexado depois, sem mexer nos valores.
+ */
+function SemPdf({
+    fatura,
+    podeAnexar,
+}: {
+    fatura: FaturaDetalhe;
+    podeAnexar: boolean;
+}) {
+    const entrada = useRef<HTMLInputElement>(null);
+    const [enviando, setEnviando] = useState(false);
+    const [erro, setErro] = useState<string | null>(null);
+
+    return (
+        <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#c9d3ea] bg-white px-4 text-center text-sm text-suave">
+            <span className="flex flex-col items-center">
                 <FileText className="mb-1 size-6" />
                 Fatura sem PDF anexo
-            </div>
-        );
+            </span>
+            {podeAnexar && (
+                <>
+                    <input
+                        ref={entrada}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                            const arquivo = e.target.files?.[0];
+                            e.target.value = '';
+
+                            if (!arquivo) {
+                                return;
+                            }
+
+                            router.post(
+                                `/gestao/faturas/${fatura.id}/pdf`,
+                                { arquivo },
+                                {
+                                    forceFormData: true,
+                                    preserveScroll: true,
+                                    onStart: () => {
+                                        setEnviando(true);
+                                        setErro(null);
+                                    },
+                                    onError: (erros) =>
+                                        setErro(erros.arquivo ?? null),
+                                    onFinish: () => setEnviando(false),
+                                },
+                            );
+                        }}
+                    />
+                    <Botao
+                        type="button"
+                        tom="branco"
+                        tamanho="sm"
+                        carregando={enviando}
+                        onClick={() => entrada.current?.click()}
+                    >
+                        {!enviando && <Upload />}
+                        Anexar PDF
+                    </Botao>
+                    {erro && <p className="text-xs text-red-600">{erro}</p>}
+                </>
+            )}
+        </div>
+    );
+}
+
+function PreviaPdf({
+    fatura,
+    podeAnexar,
+}: {
+    fatura: FaturaDetalhe;
+    podeAnexar: boolean;
+}) {
+    if (!fatura.tem_pdf) {
+        return <SemPdf fatura={fatura} podeAnexar={podeAnexar} />;
     }
 
     const url = `/arquivos/fatura/${fatura.id}`;
