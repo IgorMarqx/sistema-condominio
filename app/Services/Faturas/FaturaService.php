@@ -2,6 +2,7 @@
 
 namespace App\Services\Faturas;
 
+use App\Enums\Concessionaria;
 use App\Enums\StatusCompetencia;
 use App\Enums\StatusFatura;
 use App\Exceptions\RegraNegocio;
@@ -86,7 +87,7 @@ class FaturaService
 
             $fatura->setRelation('medidor', $medidor);
             $fatura->setRelation('competencia', $competencia);
-            $this->aplicarValidacao($fatura, $email);
+            $this->aplicarValidacao($fatura);
             $fatura->save();
 
             $this->competencias->aposFatura($fatura);
@@ -132,7 +133,7 @@ class FaturaService
                 return $fatura;
             }
 
-            $this->aplicarValidacao($fatura, $fatura->email);
+            $this->aplicarValidacao($fatura);
             $fatura->save();
             $this->competencias->aposFatura($fatura);
 
@@ -182,6 +183,55 @@ class FaturaService
             ]);
 
             return $fatura;
+        });
+    }
+
+    /**
+     * Conta do condomínio digitada no painel (valor e consumo, sem PDF). O síndico é quem digita,
+     * então ela já nasce confirmada.
+     */
+    public function lancarManual(Concessionaria $concessionaria, Carbon $mes, int $valorCentavos, ?string $consumo, User $autor): Fatura
+    {
+        if ($valorCentavos <= 0) {
+            throw new RegraNegocio('Informe o valor da conta.');
+        }
+
+        $medidor = Medidor::query()->where('dono_tipo', 'condominio')->where('concessionaria', $concessionaria)
+            ->where('ativo', true)->orderBy('id')->first();
+
+        if (! $medidor) {
+            throw new RegraNegocio('Cadastre o medidor da '.$concessionaria->rotulo().' do condomínio em Medidores.');
+        }
+
+        return DB::transaction(function () use ($medidor, $concessionaria, $mes, $valorCentavos, $consumo, $autor) {
+            $competencia = $this->competencias->garantir($medidor, $mes);
+
+            if (Fatura::query()->where('competencia_id', $competencia->id)->where('status', StatusFatura::Confirmada)->exists()) {
+                throw new RegraNegocio('A conta da '.$concessionaria->rotulo().' de '.Mes::nome($competencia->mes_ref).' já foi lançada.');
+            }
+
+            $fatura = Fatura::query()->create([
+                'competencia_id' => $competencia->id,
+                'medidor_id' => $medidor->id,
+                'origem' => 'manual',
+                'valor_centavos' => $valorCentavos,
+                'consumo' => filled($consumo) ? $consumo : null,
+                'unidade_medida' => $concessionaria->unidadeMedida(),
+                'status' => StatusFatura::Confirmada,
+                'confirmada_por' => $autor->id,
+                'confirmada_em' => now(),
+            ]);
+
+            $competencia->avancarPara(StatusCompetencia::Confirmada);
+
+            $this->auditoria->registrar('fatura.lancada', $fatura, null, [
+                'medidor' => $medidor->rotulo(),
+                'competencia' => $competencia->mes_ref->format('Y-m'),
+                'valor_centavos' => $valorCentavos,
+                'consumo' => $fatura->consumo,
+            ]);
+
+            return $fatura->setRelation('medidor', $medidor)->setRelation('competencia', $competencia);
         });
     }
 
@@ -296,9 +346,9 @@ class FaturaService
         });
     }
 
-    private function aplicarValidacao(Fatura $fatura, ?EmailRecebido $email): void
+    private function aplicarValidacao(Fatura $fatura): void
     {
-        $validacoes = $this->validador->validar($fatura, $email);
+        $validacoes = $this->validador->validar($fatura);
         $motivo = ValidadorFatura::motivo($validacoes);
         $fatura->validacoes_json = $validacoes;
         $fatura->motivo_revisao = $motivo;
