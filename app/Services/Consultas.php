@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\Concessionaria;
 use App\Enums\StatusCobranca;
 use App\Models\Cobranca;
 use App\Models\Competencia;
@@ -63,7 +62,7 @@ class Consultas
             ->orderBy('leitura_prevista')
             ->get()
             ->unique('medidor_id')
-            ->sortBy(fn (Competencia $c) => $c->medidor->concessionaria === Concessionaria::Energisa ? 0 : 1)
+            ->sortBy(fn (Competencia $c) => $c->medidor->concessionaria->ordem())
             ->map(fn (Competencia $c) => [
                 'concessionaria' => $c->medidor->concessionaria->value,
                 'servico' => $c->medidor->concessionaria->servico(),
