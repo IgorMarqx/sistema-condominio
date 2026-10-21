@@ -13,9 +13,9 @@ class AparelhoController extends Controller
     /**
      * "Trocar ×" / "Não é o 302? Trocar apartamento": esquece o aparelho.
      */
-    public function esquecer(): RedirectResponse
+    public function esquecer(Request $request): RedirectResponse
     {
-        Aparelho::esquecer();
+        $request->boolean('gestao') ? Aparelho::esquecerGestao() : Aparelho::esquecer();
 
         return redirect()->route('login');
     }
@@ -30,6 +30,10 @@ class AparelhoController extends Controller
         if ($user->isUnidade() && $user->hasPasskeysEnabled()) {
             $lembrado = Aparelho::lembrado($request);
             Aparelho::lembrar($user->login, $lembrado['nome'] ?? $request->session()->get('nome_informado'), true);
+        }
+
+        if ($user->vePainelGestao() && $user->hasPasskeysEnabled()) {
+            Aparelho::lembrarGestao($user->login);
         }
 
         return response()->json(['ok' => true]);
