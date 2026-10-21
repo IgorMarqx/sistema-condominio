@@ -31,7 +31,10 @@ class ArquivosController extends Controller
 
         abort_unless($pode && $fatura->anexo, 404);
 
-        return $this->entregar($fatura->anexo->s3_key, 'fatura-'.$medidor->concessionaria->value.'-'.$fatura->competencia->mes_ref->format('Y-m').'.pdf');
+        // PDF importado ou foto anexada depois: o nome leva a extensão do arquivo guardado.
+        $extensao = pathinfo($fatura->anexo->s3_key, PATHINFO_EXTENSION) ?: 'pdf';
+
+        return $this->entregar($fatura->anexo->s3_key, 'fatura-'.$medidor->concessionaria->value.'-'.$fatura->competencia->mes_ref->format('Y-m').'.'.$extensao);
     }
 
     public function pagamento(Request $request, Pagamento $pagamento): StreamedResponse
