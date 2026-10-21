@@ -1,8 +1,10 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import { ChevronLeft, LockKeyhole, Mail } from 'lucide-react';
+import { Head, useForm } from '@inertiajs/react';
+import { LockKeyhole, Mail } from 'lucide-react';
 import Botao from '@/components/condominio/botao';
 import { Campo, Entrada } from '@/components/condominio/campo';
-import LogoPredio from '@/components/condominio/logo-predio';
+import TelaEntrada, {
+    CabecalhoEntrada,
+} from '@/components/condominio/tela-entrada';
 
 /**
  * Login nominal do síndico e do conselho (e-mail + senha; o 2FA vem na tela seguinte).
@@ -17,24 +19,12 @@ export default function EntrarGestao() {
     return (
         <>
             <Head title="Acesso da gestão" />
-            <div className="fixed inset-0 flex flex-col overflow-y-auto bg-white">
-                <header className="topo-marinho area-segura-topo rounded-b-[28px] px-6 pt-6 pb-7 text-white">
-                    <Link
-                        href="/login"
-                        className="mb-5 inline-flex items-center gap-1 text-sm font-semibold text-white/80"
-                    >
-                        <ChevronLeft className="size-4" /> Apartamentos
-                    </Link>
-                    <LogoPredio tamanho="md" />
-                    <h1 className="mt-4 text-[26px] leading-tight font-extrabold tracking-tight">
-                        Acesso da gestão
-                    </h1>
-                    <p className="mt-1 text-sm text-white/75">
-                        Síndico e conselho entram com o próprio e-mail. O
-                        síndico confirma com o código do aplicativo
-                        autenticador.
-                    </p>
-                </header>
+            <TelaEntrada>
+                <CabecalhoEntrada
+                    titulo="Acesso da gestão"
+                    descricao="Síndico e conselho entram com o próprio e-mail. O síndico confirma com o código do aplicativo autenticador."
+                    voltar={{ href: '/login', rotulo: 'Apartamentos' }}
+                />
 
                 <form
                     onSubmit={(e) => {
@@ -43,7 +33,7 @@ export default function EntrarGestao() {
                             onFinish: () => form.reset('password'),
                         });
                     }}
-                    className="mx-auto w-full max-w-sm space-y-5 px-6 pt-6 pb-8"
+                    className="mx-auto w-full max-w-sm space-y-5 px-6 pt-6 pb-8 md:max-w-none md:px-8"
                 >
                     <Campo rotulo="E-mail" erro={form.errors.login}>
                         <Entrada
@@ -78,7 +68,7 @@ export default function EntrarGestao() {
                         Entrar
                     </Botao>
                 </form>
-            </div>
+            </TelaEntrada>
         </>
     );
 }
