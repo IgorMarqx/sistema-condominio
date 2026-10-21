@@ -1,35 +1,93 @@
-# Produção (EC2/Lightsail): app (php-fpm), nginx, fila (Horizon) e agendador.
-# O nginx serve ./public do host: rode `npm ci && npm run build` no host antes de subir.
-# O MySQL é o RDS ou o MySQL do host (DB_HOST no .env); o Redis pode ser o do host ou este.
+# Produção: imagens do GHCR publicadas pelo workflow de deploy (.github/workflows/deploy.yml).
+# O MySQL fica fora deste compose (DB_HOST); o nginx é exposto pelo proxy da rede public-proxy.
+# Uso no servidor: docker compose -f docker-compose.prod.yml up -d
+name: condominio
+
+x-app-environment: &app-environment
+    DB_HOST: ${DB_HOST:-mysql}
+    DB_DATABASE: ${DB_DATABASE:-condominio}
+    DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+    DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    APP_URL: ${APP_URL:?APP_URL is required}
+
 services:
     app:
-        build: { context: ., dockerfile: docker/php/Dockerfile }
-        env_file: .env
-        volumes: [storage:/var/www/html/storage]
-        restart: unless-stopped
-    horizon:
-        build: { context: ., dockerfile: docker/php/Dockerfile }
-        env_file: .env
-        command: php artisan horizon
-        volumes: [storage:/var/www/html/storage]
-        restart: unless-stopped
-    agendador:
-        build: { context: ., dockerfile: docker/php/Dockerfile }
-        env_file: .env
-        command: php artisan schedule:work
-        volumes: [storage:/var/www/html/storage]
-        restart: unless-stopped
-    nginx:
-        image: nginx:1.27-alpine
-        ports: ['80:80']
+        container_name: condominio-app
+        image: ${APP_IMAGE:-condominio-app:local}
+        build:
+            context: .
+            target: app
+        env_file:
+            - .env
+        environment: *app-environment
         volumes:
-            - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-            - ./public:/var/www/html/public:ro
-        depends_on: [app]
+            - storage:/var/www/html/storage
+            - bootstrap-cache:/var/www/html/bootstrap/cache
         restart: unless-stopped
-    redis:
-        image: redis:7-alpine
+        networks:
+            - condominio
+
+    queue:
+        container_name: condominio-queue
+        image: ${APP_IMAGE:-condominio-app:local}
+        build:
+            context: .
+            target: app
+        command: php artisan queue:work --sleep=3 --tries=3 --timeout=90
+        env_file:
+            - .env
+        environment: *app-environment
+        volumes:
+            - storage:/var/www/html/storage
+            - bootstrap-cache:/var/www/html/bootstrap/cache
+        depends_on:
+            - app
         restart: unless-stopped
+        networks:
+            - condominio
+
+    # Jobs diários: backup do banco, competências, lembretes de leitura e de vencimento.
+    scheduler:
+        container_name: condominio-scheduler
+        image: ${APP_IMAGE:-condominio-app:local}
+        build:
+            context: .
+            target: app
+        command: php artisan schedule:work
+        env_file:
+            - .env
+        environment: *app-environment
+        volumes:
+            - storage:/var/www/html/storage
+            - bootstrap-cache:/var/www/html/bootstrap/cache
+        depends_on:
+            - app
+        restart: unless-stopped
+        networks:
+            - condominio
+
+    nginx:
+        container_name: condominio-nginx
+        image: ${NGINX_IMAGE:-condominio-nginx:local}
+        build:
+            context: .
+            target: nginx
+        expose:
+            - '80'
+        depends_on:
+            - app
+        restart: unless-stopped
+        networks:
+            - condominio
+            - public-proxy
 
 volumes:
     storage:
+    bootstrap-cache:
+
+networks:
+    condominio:
+        name: condominio-network
+    public-proxy:
+        name: public-proxy-network
+        external: true
