@@ -17,15 +17,10 @@ class Configuracoes
         'contribuicao_centavos' => 5000,
         // Vencimento interno = vencimento da concessionária − N dias.
         'dias_antecedencia' => 5,
-        'regra_rateio' => 'igual',
         'pix_chave' => null,
         'pix_recebedor' => null,
         'pix_cidade' => 'JOAO PESSOA',
         'banco_titular' => null,
-        'dominio_faturas' => null,
-        // Remetentes reconhecidos por concessionária (o domínio basta).
-        'remetentes_energisa' => ['energisa.com.br'],
-        'remetentes_cagepa' => ['cagepa.pb.gov.br'],
         'limite_anomalia_percentual' => 30,
     ];
 
