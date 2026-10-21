@@ -13,5 +13,3 @@ Schedule::job(new GerarCompetencias)->dailyAt('06:00')->timezone('America/Sao_Pa
 Schedule::job(new LembreteLeitura)->dailyAt('08:00')->timezone('America/Sao_Paulo')->onOneServer();
 Schedule::job(new FaturaAtrasada)->dailyAt('09:00')->timezone('America/Sao_Paulo')->onOneServer();
 Schedule::job(new LembreteVencimento)->dailyAt('09:00')->timezone('America/Sao_Paulo')->onOneServer();
-
-Schedule::command('horizon:snapshot')->everyFiveMinutes();
