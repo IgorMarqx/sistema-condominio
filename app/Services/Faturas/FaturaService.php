@@ -300,7 +300,7 @@ class FaturaService
     /**
      * Pagamento da conta do condomínio à concessionária: saída no caixa, com comprovante.
      */
-    public function pagarCondominio(Fatura $fatura, Carbon $data, UploadedFile $comprovante, User $autor): LancamentoCaixa
+    public function pagarCondominio(Fatura $fatura, Carbon $data, ?UploadedFile $comprovante, User $autor): LancamentoCaixa
     {
         if (! $fatura->isCondominio() || $fatura->status !== StatusFatura::Confirmada) {
             throw new RegraNegocio('Só fatura do condomínio confirmada pode ser paga pelo caixa.');
