@@ -23,7 +23,9 @@ class CobrancasController extends Controller
 {
     public function index(Request $request, PagamentoService $pagamentos): Response
     {
-        $meses = Rateio::query()->where('status', 'confirmado')->orderByDesc('mes_ref')->pluck('mes_ref');
+        // Um rateio por conta: o mês aparece uma vez só no seletor.
+        $meses = Rateio::query()->where('status', 'confirmado')->orderByDesc('mes_ref')->pluck('mes_ref')
+            ->unique(fn ($m) => Mes::ref($m)->format('Y-m'))->values();
         $mes = $request->filled('mes') ? Mes::ref((string) $request->input('mes')) : ($meses->first() ? Mes::ref($meses->first()) : null);
 
         $cobrancas = $mes
@@ -64,6 +66,20 @@ class CobrancasController extends Controller
         $pagamentos->recusar($pagamento, $dados['motivo'], $request->user());
 
         return back()->with('sucesso', 'Comprovante recusado. A unidade foi avisada.');
+    }
+
+    public function paga(Request $request, Cobranca $cobranca, PagamentoService $pagamentos): RedirectResponse
+    {
+        $pagamentos->marcarPaga($cobranca, $request->user());
+
+        return back()->with('sucesso', 'Apto '.$cobranca->unidade->numero.' marcado como pago. O valor entrou no caixa.');
+    }
+
+    public function naoPaga(Request $request, Cobranca $cobranca, PagamentoService $pagamentos): RedirectResponse
+    {
+        $pagamentos->marcarNaoPaga($cobranca, $request->user());
+
+        return back()->with('sucesso', 'Apto '.$cobranca->unidade->numero.' marcado como não pago.');
     }
 
     public function recebimento(Request $request, Cobranca $cobranca, PagamentoService $pagamentos): RedirectResponse
