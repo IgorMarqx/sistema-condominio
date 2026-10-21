@@ -66,7 +66,6 @@ class MinhasContasController extends Controller
                 'rotulo' => $m->concessionaria->rotulo().' · '.$m->identificador,
                 'tem_senha_pdf' => $m->senha_pdf !== null,
             ])->values(),
-            'recebimento' => ReceberFaturasController::situacaoRecebimento($unidade),
             'autoriza_admin' => $unidade->autoriza_admin_ver_faturas,
             'limite_anomalia' => (int) app(Configuracoes::class)->get('limite_anomalia_percentual'),
         ]);
