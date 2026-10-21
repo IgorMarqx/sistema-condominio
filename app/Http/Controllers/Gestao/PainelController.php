@@ -2,37 +2,48 @@
 
 namespace App\Http\Controllers\Gestao;
 
+use App\Enums\Concessionaria;
 use App\Enums\StatusCobranca;
 use App\Enums\StatusFatura;
+use App\Http\Apresentacao\CobrancaDados;
 use App\Http\Apresentacao\FaturaDados;
 use App\Http\Controllers\Controller;
 use App\Models\Cobranca;
-use App\Models\EmailRecebido;
 use App\Models\Fatura;
+use App\Models\Medidor;
 use App\Models\Pagamento;
 use App\Models\Rateio;
 use App\Models\Unidade;
 use App\Services\Caixa\CaixaService;
 use App\Services\Caixa\FechamentoService;
-use App\Services\Rateio\RateioService;
+use App\Services\Cobrancas\PagamentoService;
+use App\Services\Configuracoes;
 use App\Support\Mes;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PainelController extends Controller
 {
-    public function __invoke(Request $request, CaixaService $caixa, RateioService $rateios, FechamentoService $fechamentos): Response
+    public function __invoke(Request $request, CaixaService $caixa, PagamentoService $pagamentos, FechamentoService $fechamentos, Configuracoes $configuracoes): Response
     {
-        $rateio = Rateio::query()->where('status', 'confirmado')->orderByDesc('mes_ref')->first();
-        $cobrancas = $rateio
-            ? Cobranca::query()->where('rateio_id', $rateio->id)->with(['unidade', 'pagamentos'])->get()->keyBy('unidade_id')
+        $hoje = Mes::ref(today());
+        // Mês atual; sem cobrança nele ainda, o último mês que teve.
+        $mes = Cobranca::query()->where('mes_ref', $hoje->toDateString())->exists()
+            ? $hoje
+            : (($ultimo = Cobranca::query()->max('mes_ref')) ? Mes::ref($ultimo) : null);
+
+        $cobrancas = $mes
+            ? Cobranca::query()->where('mes_ref', $mes->toDateString())->where('status', '!=', StatusCobranca::Cancelada)
+                ->with(['unidade', 'itens', 'pagamentos'])->orderBy('id')->get()->groupBy('unidade_id')
             : collect();
 
-        $emAberto = $cobrancas
+        $emAberto = $cobrancas->flatten()
             // Comprovante enviado conta como "conferir", não como aberto (igual ao mockup).
             ->filter(fn (Cobranca $c) => $c->status === StatusCobranca::Aberta)
-            ->sum(fn (Cobranca $c) => $c->valor_centavos - (int) $c->pagamentos->where('status', 'confirmado')->sum('valor_centavos'));
+            ->sum(fn (Cobranca $c) => $pagamentos->emAberto($c));
 
         $faturasPendentes = Fatura::query()->doCondominio()
             ->whereIn('status', [StatusFatura::PendenteConfirmacao, StatusFatura::PendenteRevisao])
@@ -41,15 +52,14 @@ class PainelController extends Controller
             ->get();
 
         $comprovantes = Pagamento::query()->where('status', 'aguardando')->with('cobranca.unidade')->get();
-        $emailsRevisao = EmailRecebido::query()->where('status', 'revisao')
-            ->whereHas('caixaEntrada', fn ($q) => $q->where('dono_tipo', 'condominio'))->count();
 
         $proximoFechamento = $fechamentos->proximoMes();
         $podeFechar = $proximoFechamento && $fechamentos->previa($proximoFechamento)['pode_fechar'];
+        $ocupados = Unidade::query()->where('ativa', true)->ordemFixa()->pluck('numero');
 
         return Inertia::render('gestao/painel', [
             'resumo' => [
-                'recebidas' => $cobrancas->where('status', StatusCobranca::Paga)->count(),
+                'recebidas' => $cobrancas->filter(fn (Collection $lista) => $lista->every(fn (Cobranca $c) => $c->status === StatusCobranca::Paga))->count(),
                 'total' => $cobrancas->count(),
                 'em_aberto' => $emAberto,
                 'caixa' => $caixa->saldo(),
@@ -61,27 +71,74 @@ class PainelController extends Controller
                     'aptos' => $comprovantes->map(fn (Pagamento $p) => $p->cobranca->unidade->numero)->unique()->sort()->values(),
                     'mes' => $comprovantes->first()?->cobranca->mes_ref->format('Y-m'),
                 ],
-                'emails_revisao' => $emailsRevisao,
-                'faturas_para_ratear' => $rateios->faturasDisponiveis()->count(),
                 'fechamento' => $podeFechar ? ['mes' => $proximoFechamento->format('Y-m'), 'mes_rotulo' => Mes::rotulo($proximoFechamento)] : null,
             ],
-            'cobrancas' => $rateio ? [
-                'mes' => $rateio->mes_ref->format('Y-m'),
-                'mes_nome' => Mes::nome($rateio->mes_ref),
-                'vencimento' => $rateio->vencimento->toDateString(),
+            'contas' => [
+                'mes_nome' => Mes::nome($hoje),
+                'ocupados' => $ocupados,
+                // A contribuição ao caixa vai junto da primeira conta lançada no mês.
+                'contribuicao' => Rateio::query()->where('mes_ref', $hoje->toDateString())->exists() ? 0 : $configuracoes->int('contribuicao_centavos'),
+                'energisa' => $this->conta(Concessionaria::Energisa, $hoje),
+                'cagepa' => $this->conta(Concessionaria::Cagepa, $hoje),
+            ],
+            'cobrancas' => $mes ? [
+                'mes' => $mes->format('Y-m'),
+                'mes_nome' => Mes::nome($mes),
+                'vencimento' => $cobrancas->flatten()->min('vencimento')?->toDateString(),
                 'unidades' => Unidade::query()->where('ativa', true)->orderByDesc('andar')->orderBy('numero')->get()
-                    ->map(function (Unidade $u) use ($cobrancas) {
-                        $c = $cobrancas->get($u->id);
+                    ->map(function (Unidade $u) use ($cobrancas, $pagamentos) {
+                        /** @var Collection<int, Cobranca> $lista */
+                        $lista = $cobrancas->get($u->id, collect());
 
                         return [
                             'numero' => $u->numero,
                             'andar' => $u->andar,
-                            'status' => $c?->status->value,
-                            'vencida' => $c?->vencida() ?? false,
-                            'valor' => $c?->valor_centavos,
+                            'status' => $this->statusDaUnidade($lista),
+                            'vencida' => $lista->contains(fn (Cobranca $c) => $c->vencida()),
+                            'cobrancas' => $lista->map(fn (Cobranca $c) => CobrancaDados::resumo($c) + [
+                                'em_aberto' => $pagamentos->emAberto($c),
+                            ])->values(),
                         ];
                     })->values(),
             ] : null,
         ]);
+    }
+
+    /**
+     * @return array{medidor_id: int|null, unidade_medida: string, lancada: array{valor: int|null, consumo: string|null}|null}
+     */
+    private function conta(Concessionaria $concessionaria, Carbon $mes): array
+    {
+        $medidor = Medidor::query()->where('dono_tipo', 'condominio')->where('concessionaria', $concessionaria)
+            ->where('ativo', true)->orderBy('id')->first();
+
+        $fatura = $medidor
+            ? Fatura::query()->where('medidor_id', $medidor->id)->where('status', StatusFatura::Confirmada)
+                ->whereHas('competencia', fn ($q) => $q->where('mes_ref', $mes->toDateString()))->first()
+            : null;
+
+        return [
+            'medidor_id' => $medidor?->id,
+            'unidade_medida' => $concessionaria->unidadeMedida(),
+            'lancada' => $fatura ? [
+                'valor' => $fatura->valor_centavos,
+                'consumo' => $fatura->consumo !== null ? rtrim(rtrim((string) $fatura->consumo, '0'), '.') : null,
+            ] : null,
+        ];
+    }
+
+    /**
+     * Paga só quando todas as cobranças do mês (energia e água) estão pagas.
+     *
+     * @param  Collection<int, Cobranca>  $lista
+     */
+    private function statusDaUnidade(Collection $lista): ?string
+    {
+        return match (true) {
+            $lista->isEmpty() => null,
+            $lista->every(fn (Cobranca $c) => $c->status === StatusCobranca::Paga) => StatusCobranca::Paga->value,
+            $lista->contains(fn (Cobranca $c) => $c->status === StatusCobranca::AguardandoConfirmacao) => StatusCobranca::AguardandoConfirmacao->value,
+            default => StatusCobranca::Aberta->value,
+        };
     }
 }
