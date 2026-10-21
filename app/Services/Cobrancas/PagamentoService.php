@@ -112,6 +112,63 @@ class PagamentoService
         return $this->confirmar($pagamento, $admin);
     }
 
+    /**
+     * Síndico marca no painel que a unidade pagou. Comprovante já enviado é confirmado; sem
+     * comprovante, o valor em aberto entra no caixa hoje.
+     */
+    public function marcarPaga(Cobranca $cobranca, User $admin): Cobranca
+    {
+        if (in_array($cobranca->status, [StatusCobranca::Paga, StatusCobranca::Cancelada], true)) {
+            throw new RegraNegocio('Esta cobrança já está '.($cobranca->status === StatusCobranca::Paga ? 'paga' : 'cancelada').'.');
+        }
+
+        return DB::transaction(function () use ($cobranca, $admin) {
+            foreach ($cobranca->pagamentos()->where('status', 'aguardando')->orderBy('id')->get() as $pagamento) {
+                $this->confirmar($pagamento, $admin);
+            }
+
+            $falta = $this->emAberto($cobranca->refresh());
+
+            if ($falta > 0) {
+                $pagamento = Pagamento::query()->create([
+                    'cobranca_id' => $cobranca->id,
+                    'valor_centavos' => $falta,
+                    'pago_em' => today()->toDateString(),
+                    'status' => 'aguardando',
+                    'enviado_por' => $admin->id,
+                ]);
+
+                $this->confirmar($pagamento, $admin);
+            }
+
+            return $cobranca->refresh();
+        });
+    }
+
+    /**
+     * Desfaz o "pago": recebimento confirmado é estornado no caixa e comprovante à espera é recusado.
+     */
+    public function marcarNaoPaga(Cobranca $cobranca, User $admin): Cobranca
+    {
+        return DB::transaction(function () use ($cobranca, $admin) {
+            foreach ($cobranca->pagamentos()->where('status', 'aguardando')->get() as $pagamento) {
+                $this->recusar($pagamento, 'O síndico não encontrou este pagamento no extrato.', $admin);
+            }
+
+            $lancamentos = LancamentoCaixa::query()->where('origem_tipo', 'pagamento')
+                ->whereIn('origem_id', $cobranca->pagamentos()->where('status', 'confirmado')->pluck('id'))
+                ->whereDoesntHave('estornadoPor')
+                ->get();
+
+            foreach ($lancamentos as $lancamento) {
+                $this->caixa->estornar($lancamento, 'Cobrança marcada como não paga no painel.', $admin);
+                $this->aposEstorno($lancamento);
+            }
+
+            return $cobranca->refresh();
+        });
+    }
+
     public function confirmar(Pagamento $pagamento, User $admin): Pagamento
     {
         if ($pagamento->status !== 'aguardando') {
@@ -130,7 +187,7 @@ class PagamentoService
                 CategoriaLancamento::Cobranca,
                 'Cobrança · apto '.$cobranca->unidade->numero.' · '.Mes::nome($cobranca->mes_ref),
                 $admin,
-                ['caminho' => $pagamento->comprovante_s3, 'sha256' => $pagamento->sha256],
+                $pagamento->comprovante_s3 ? ['caminho' => $pagamento->comprovante_s3, 'sha256' => (string) $pagamento->sha256] : null,
                 'pagamento',
                 $pagamento->id,
             );
