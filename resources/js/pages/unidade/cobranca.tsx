@@ -48,8 +48,8 @@ export default function PaginaCobranca({ cobranca, historico }: Props) {
                             icone={ReceiptText}
                             titulo="Nenhuma cobrança ainda"
                         >
-                            A cobrança aparece quando o síndico confirma o
-                            rateio das contas do mês.
+                            A cobrança aparece quando o síndico lança as contas
+                            do mês.
                         </Vazio>
                     </Cartao>
                 </div>
@@ -70,7 +70,7 @@ export default function PaginaCobranca({ cobranca, historico }: Props) {
             <TopoTela
                 voltar="/"
                 contexto={`Apartamento ${cobranca.unidade}`}
-                titulo={`Cobrança de ${cobranca.mes_nome}`}
+                titulo={`${cobranca.servico} · ${cobranca.mes_nome}`}
             />
 
             <div className="space-y-4 px-4">
@@ -274,7 +274,7 @@ export default function PaginaCobranca({ cobranca, historico }: Props) {
                                 >
                                     <span>
                                         <span className="block text-sm font-bold">
-                                            {c.mes_rotulo}
+                                            {c.mes_rotulo} · {c.servico}
                                         </span>
                                         <span className="block text-xs text-suave">
                                             Vence {data(c.vencimento)}
