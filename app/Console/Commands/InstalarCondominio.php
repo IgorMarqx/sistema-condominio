@@ -7,7 +7,6 @@ use App\Models\Unidade;
 use App\Models\User;
 use App\Services\Auditoria\Ator;
 use App\Services\Auditoria\Auditoria;
-use App\Services\Ingestao\CaixasEntradaService;
 use App\Support\SenhaAleatoria;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -24,9 +23,9 @@ class InstalarCondominio extends Command
         {--admin-email= : e-mail do síndico}
         {--admin-nome= : nome do síndico}';
 
-    protected $description = 'Cria unidades, contas do caixa, caixa de entrada do condomínio e o acesso do síndico';
+    protected $description = 'Cria unidades, contas do caixa e o acesso do síndico';
 
-    public function handle(Auditoria $auditoria, CaixasEntradaService $caixas): int
+    public function handle(Auditoria $auditoria): int
     {
         DB::transaction(function () use ($auditoria) {
             for ($andar = 1; $andar <= (int) $this->option('andares'); $andar++) {
@@ -44,8 +43,7 @@ class InstalarCondominio extends Command
             ContaCaixa::query()->firstOrCreate(['slug' => 'reserva'], ['nome' => 'Fundo de reserva']);
         });
 
-        $caixa = $caixas->garantir(null);
-        $this->info('Unidades: '.Unidade::query()->count().' · endereço de faturas do condomínio: '.$caixa->endereco);
+        $this->info('Unidades: '.Unidade::query()->count());
 
         $email = $this->option('admin-email') ?: $this->ask('E-mail do síndico (vazio para pular)');
 
