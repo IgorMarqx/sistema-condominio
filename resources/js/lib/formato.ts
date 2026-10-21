@@ -25,6 +25,24 @@ export function dinheiro(centavos: number | null | undefined): string {
     return (centavos < 0 ? '−R$ ' : 'R$ ') + texto;
 }
 
+/**
+ * "412,57" / "1.412,57" / "412.57" / "R$ 412" → centavos. Mesma regra do Dinheiro::paraCentavos:
+ * a última vírgula ou ponto seguida de 1–2 dígitos é a casa decimal. Inválido → null.
+ */
+export function lerCentavos(texto: string): number | null {
+    const limpo = texto.replace(/R\$|\s/g, '');
+
+    if (!/^[\d.,]+$/.test(limpo)) {
+        return null;
+    }
+
+    const decimal = limpo.match(/^(.*)[.,](\d{1,2})$/);
+    const inteiro = (decimal ? decimal[1] : limpo).replace(/\D/g, '') || '0';
+    const centavos = decimal ? decimal[2].padEnd(2, '0') : '00';
+
+    return Number(inteiro) * 100 + Number(centavos);
+}
+
 /** Com sinal explícito: "+ 104,23" / "− 425,10". */
 export function comSinal(centavos: number): string {
     return (
