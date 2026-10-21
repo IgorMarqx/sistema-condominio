@@ -4,7 +4,6 @@ import { Fingerprint, LockKeyhole, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import Botao from '@/components/condominio/botao';
 import { Campo, Entrada } from '@/components/condominio/campo';
-import Folha from '@/components/condominio/folha';
 import LogoPredio from '@/components/condominio/logo-predio';
 import TelaEntrada, {
     CabecalhoEntrada,
@@ -179,7 +178,6 @@ function TelaBemVindo({
         nome: lembrado.nome ?? '',
     });
     const [mostrar, setMostrar] = useState(false);
-    const [esqueci, setEsqueci] = useState(false);
     const { verify, isLoading, isSupported, error } = usarBiometria();
 
     const enviar = (e: React.FormEvent) => {
@@ -267,13 +265,12 @@ function TelaBemVindo({
                             />
                             Lembrar deste aparelho
                         </label>
-                        <button
-                            type="button"
-                            onClick={() => setEsqueci(true)}
+                        <Link
+                            href="/recuperar-senha"
                             className="text-sm font-semibold text-marinho-700"
                         >
                             Esqueci a senha
-                        </button>
+                        </Link>
                     </div>
 
                     <Botao
@@ -309,7 +306,7 @@ function TelaBemVindo({
 
                     <p className="hidden items-center justify-center gap-1.5 pt-1 text-xs text-suave md:flex">
                         <ShieldCheck className="size-3.5" />
-                        Senha esquecida? Peça uma nova ao síndico.
+                        Recupere sua senha por e-mail ou WhatsApp.
                     </p>
                 </form>
             </div>
@@ -317,11 +314,9 @@ function TelaBemVindo({
             <div className="area-segura-baixo arcos relative mt-8 bg-gradient-to-b from-white via-[#c7d0e4] to-marinho-800 px-6 pt-14 pb-5 md:hidden">
                 <p className="flex items-center justify-center gap-2 text-xs font-semibold text-white">
                     <ShieldCheck className="size-4" />
-                    Senha esquecida? Peça uma nova ao síndico.
+                    Recupere sua senha por e-mail ou WhatsApp.
                 </p>
             </div>
-
-            <AjudaSenha aberta={esqueci} aoMudar={setEsqueci} />
         </TelaEntrada>
     );
 }
@@ -337,7 +332,6 @@ function TelaGrade({ apartamentos }: { apartamentos: string[][] }) {
         remember: true as boolean,
         lembrar: true as boolean,
     });
-    const [esqueci, setEsqueci] = useState(false);
 
     const enviar = (e: React.FormEvent) => {
         e.preventDefault();
@@ -427,13 +421,12 @@ function TelaGrade({ apartamentos }: { apartamentos: string[][] }) {
                 </Botao>
 
                 <div className="flex items-center justify-between pt-1 text-sm">
-                    <button
-                        type="button"
-                        onClick={() => setEsqueci(true)}
+                    <Link
+                        href="/recuperar-senha"
                         className="font-semibold text-marinho-700"
                     >
                         Esqueci a senha
-                    </button>
+                    </Link>
                     <Link
                         href="/entrar/gestao"
                         className="font-semibold text-suave"
@@ -442,34 +435,7 @@ function TelaGrade({ apartamentos }: { apartamentos: string[][] }) {
                     </Link>
                 </div>
             </form>
-
-            <AjudaSenha aberta={esqueci} aoMudar={setEsqueci} />
         </TelaEntrada>
-    );
-}
-
-function AjudaSenha({
-    aberta,
-    aoMudar,
-}: {
-    aberta: boolean;
-    aoMudar: (v: boolean) => void;
-}) {
-    return (
-        <Folha aberta={aberta} aoMudar={aoMudar} titulo="Esqueceu a senha?">
-            <div className="space-y-3 pb-2 text-sm text-suave">
-                <p>
-                    A senha é do apartamento e só o{' '}
-                    <strong className="text-texto">síndico</strong> gera uma
-                    nova. Peça a ele pessoalmente ou por mensagem: você recebe
-                    uma senha provisória e escolhe a sua no primeiro acesso.
-                </p>
-                <p>
-                    Por segurança, a senha nova desativa a biometria cadastrada
-                    antes. É só ativar de novo em “Minha conta”.
-                </p>
-            </div>
-        </Folha>
     );
 }
 
