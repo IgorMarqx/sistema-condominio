@@ -1,15 +1,21 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import { LockKeyhole, Mail } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { usePasskeyVerify } from '@laravel/passkeys/react';
+import { Fingerprint, LockKeyhole, Mail } from 'lucide-react';
 import Botao from '@/components/condominio/botao';
 import { Campo, Entrada } from '@/components/condominio/campo';
 import TelaEntrada, {
     CabecalhoEntrada,
 } from '@/components/condominio/tela-entrada';
+import { traduzirErroPasskey } from '@/lib/passkeys';
 
 /**
- * Login nominal do síndico e do conselho (e-mail + senha; o 2FA vem na tela seguinte).
+ * Login nominal do síndico e do conselho: e-mail + senha (o 2FA vem na tela seguinte) ou
+ * biometria cadastrada, que já vale como segundo fator e entra direto.
  */
 export default function EntrarGestao() {
+    const biometria = usePasskeyVerify({
+        onSuccess: (resposta) => router.visit(resposta.redirect ?? '/'),
+    });
     const form = useForm({
         login: '',
         password: '',
@@ -22,7 +28,7 @@ export default function EntrarGestao() {
             <TelaEntrada>
                 <CabecalhoEntrada
                     titulo="Acesso da gestão"
-                    descricao="Síndico e conselho entram com o próprio e-mail. O síndico confirma com o código do aplicativo autenticador."
+                    descricao="Síndico e conselho entram com o próprio e-mail. Com senha, o síndico confirma o código do autenticador; com biometria, entra direto."
                     voltar={{ href: '/login', rotulo: 'Apartamentos' }}
                 />
 
@@ -67,6 +73,33 @@ export default function EntrarGestao() {
                     >
                         Entrar
                     </Botao>
+                    {biometria.isSupported && (
+                        <>
+                            <div className="flex items-center gap-3 text-xs font-semibold text-suave">
+                                <span className="h-px flex-1 bg-linha" />
+                                ou
+                                <span className="h-px flex-1 bg-linha" />
+                            </div>
+                            <Botao
+                                type="button"
+                                tom="branco"
+                                tamanho="lg"
+                                largo
+                                carregando={biometria.isLoading}
+                                onClick={() => void biometria.verify()}
+                            >
+                                {!biometria.isLoading && <Fingerprint />}
+                                {biometria.isLoading
+                                    ? 'Entrando…'
+                                    : 'Entrar com biometria'}
+                            </Botao>
+                            {biometria.error && (
+                                <p className="text-center text-xs text-red-600">
+                                    {traduzirErroPasskey(biometria.error)}
+                                </p>
+                            )}
+                        </>
+                    )}
                     <Link
                         href="/recuperar-senha"
                         className="block text-center text-sm font-semibold text-marinho-700"
