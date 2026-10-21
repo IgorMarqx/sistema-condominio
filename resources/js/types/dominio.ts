@@ -1,4 +1,4 @@
-export type ConcessionariaId = 'energisa' | 'cagepa';
+export type ConcessionariaId = 'energisa' | 'cagepa' | 'internet';
 
 export type StatusFatura =
     | 'pendente_revisao'
@@ -102,7 +102,7 @@ export type Cobranca = {
 
 export type CobrancaDetalhe = Cobranca & {
     itens: {
-        tipo: 'energia' | 'agua' | 'contribuicao' | 'ajuste';
+        tipo: 'energia' | 'agua' | 'internet' | 'contribuicao' | 'ajuste';
         descricao: string;
         valor: number;
         fatura_id: number | null;
