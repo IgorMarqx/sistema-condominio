@@ -333,33 +333,35 @@ class FaturaService
     }
 
     /**
-     * PDF da conta do condomínio anexado depois (conta lançada à mão no painel, sem o arquivo).
-     * Só completa: fatura que já tem PDF não troca de arquivo.
+     * PDF ou foto da conta do condomínio anexado depois (conta lançada à mão no painel, sem o
+     * arquivo). Só completa: fatura que já tem anexo não troca de arquivo.
      */
-    public function anexarPdf(Fatura $fatura, UploadedFile $arquivo, User $autor): Fatura
+    public function anexarArquivo(Fatura $fatura, UploadedFile $arquivo, User $autor): Fatura
     {
         if (! $fatura->isCondominio()) {
             throw new RegraNegocio('Só a conta do condomínio recebe PDF por aqui.');
         }
 
         if ($fatura->anexo_id !== null) {
-            throw new RegraNegocio('Esta fatura já tem PDF anexo.');
+            throw new RegraNegocio('Esta fatura já tem arquivo anexo.');
         }
 
         $conteudo = (string) file_get_contents($arquivo->getRealPath());
 
         if (Anexo::query()->where('sha256', hash('sha256', $conteudo))->exists()) {
-            throw new RegraNegocio('Este PDF já está anexado a outra fatura.');
+            throw new RegraNegocio('Este arquivo já está anexado a outra fatura.');
         }
 
         return DB::transaction(function () use ($fatura, $arquivo, $conteudo, $autor) {
-            $guardado = $this->armazenamento->guardarConteudo($conteudo, 'faturas', 'pdf');
+            $mime = $arquivo->getMimeType() ?: 'application/pdf';
+            $extensao = $mime === 'application/pdf' ? 'pdf' : strtolower($arquivo->guessExtension() ?: $arquivo->getClientOriginalExtension() ?: 'jpg');
+            $guardado = $this->armazenamento->guardarConteudo($conteudo, 'faturas', $extensao);
             $anexo = Anexo::query()->create([
                 'nome' => $this->armazenamento->nomeSeguro($arquivo->getClientOriginalName()),
                 's3_key' => $guardado['caminho'],
                 'sha256' => $guardado['sha256'],
                 'tamanho' => $guardado['tamanho'],
-                'mime' => 'application/pdf',
+                'mime' => $mime,
                 'enviado_por' => $autor->id,
             ]);
 
