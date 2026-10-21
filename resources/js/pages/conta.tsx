@@ -24,6 +24,7 @@ import { useSenhaConfirmada } from '@/components/condominio/confirmar-senha';
 import Folha from '@/components/condominio/folha';
 import Selo from '@/components/condominio/selo';
 import TopoTela from '@/components/condominio/topo-tela';
+import { CartaoAplicativo } from '@/components/condominio/instalar-app';
 import {
     InputOTP,
     InputOTPGroup,
@@ -78,6 +79,11 @@ export default function Conta(props: Props) {
                 )}
 
                 {unidade && <QuemUsa nome={props.nome_informado} />}
+
+                <section>
+                    <TituloSecao>Aplicativo</TituloSecao>
+                    <CartaoAplicativo />
+                </section>
 
                 <section>
                     <TituloSecao>Biometria</TituloSecao>
