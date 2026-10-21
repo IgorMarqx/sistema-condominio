@@ -11,6 +11,7 @@ use App\Support\Mes;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 /**
  * Conta do condomínio lançada no painel: valor e consumo do mês, já dividida entre as unidades.
@@ -20,7 +21,7 @@ class ContasController extends Controller
     public function store(Request $request, FaturaService $faturas, RateioService $rateios): RedirectResponse
     {
         $dados = $request->validate([
-            'concessionaria' => ['required', 'in:energisa,cagepa'],
+            'concessionaria' => ['required', Rule::enum(Concessionaria::class)],
             'valor' => ['required', 'string', 'regex:/^\s*(R\$)?\s*[\d.,]+\s*$/'],
             'consumo' => ['nullable', 'string', 'regex:/^\d+([.,]\d{1,3})?$/'],
         ], [], ['valor' => 'valor', 'consumo' => 'consumo']);
@@ -34,7 +35,7 @@ class ContasController extends Controller
             $request->user(),
         ));
 
-        return back()->with('sucesso', 'Conta da '.$concessionaria->rotulo().' lançada: '.Dinheiro::formatar($rateio->total_centavos)
+        return back()->with('sucesso', 'Conta '.($concessionaria === Concessionaria::Internet ? 'da internet' : 'da '.$concessionaria->rotulo()).' lançada: '.Dinheiro::formatar($rateio->total_centavos)
             .' dividido entre '.$rateio->cobrancas()->count().' apartamentos.');
     }
 }
