@@ -1,4 +1,5 @@
 import { Building2, ChartLine, House, Wallet } from 'lucide-react';
+import ConviteInstalar from '@/components/condominio/convite-instalar';
 import { useFlash } from '@/hooks/use-flash';
 import type { LayoutProps } from '@/types';
 import BarraInferior, { type ItemNavegacao } from './barra-inferior';
@@ -38,6 +39,7 @@ export default function LayoutUnidade({ children }: LayoutProps) {
         <div className="min-h-svh bg-fundo">
             <main className="mx-auto max-w-lg pb-28 md:pb-32">{children}</main>
             <BarraInferior itens={itens} />
+            <ConviteInstalar />
         </div>
     );
 }
