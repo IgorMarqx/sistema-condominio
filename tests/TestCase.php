@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 abstract class TestCase extends BaseTestCase
 {
     /**
-     * Prédio de 12 unidades, contas do caixa e endereço de faturas do condomínio.
+     * Prédio de 12 unidades e contas do caixa.
      */
     protected function predio(): void
     {
@@ -79,39 +79,5 @@ abstract class TestCase extends BaseTestCase
     protected function pdf(string $texto): string
     {
         return Pdf::loadHTML('<pre style="font-family: DejaVu Sans Mono; font-size: 9px">'.e($texto).'</pre>')->output();
-    }
-
-    protected function eml(string $para, string $de, string $assunto, ?string $pdf = null, string $corpo = 'Fatura em anexo.', string $autenticacao = 'spf=pass dkim=pass'): string
-    {
-        $limite = 'limite'.bin2hex(random_bytes(4));
-        $partes = [
-            'Authentication-Results: mx.teste; '.$autenticacao,
-            'From: Remetente <'.$de.'>',
-            'To: '.$para,
-            'Subject: '.$assunto,
-            'Message-ID: <'.$limite.'@teste>',
-            'MIME-Version: 1.0',
-            'Content-Type: multipart/mixed; boundary="'.$limite.'"',
-            '',
-            '--'.$limite,
-            'Content-Type: text/plain; charset=UTF-8',
-            '',
-            $corpo,
-        ];
-
-        if ($pdf !== null) {
-            array_push($partes,
-                '--'.$limite,
-                'Content-Type: application/pdf; name="fatura.pdf"',
-                'Content-Disposition: attachment; filename="fatura.pdf"',
-                'Content-Transfer-Encoding: base64',
-                '',
-                chunk_split(base64_encode($pdf), 76, "\r\n"),
-            );
-        }
-
-        $partes[] = '--'.$limite.'--';
-
-        return implode("\r\n", $partes)."\r\n";
     }
 }
