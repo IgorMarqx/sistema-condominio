@@ -121,6 +121,38 @@ class RateioCobrancaTest extends TestCase
         $this->assertSame(0, Cobranca::query()->count());
     }
 
+    public function test_internet_lancada_sem_medidor_vira_terceira_cobranca(): void
+    {
+        $this->lancarEnergia();
+        $admin = $this->sindico();
+
+        // Sem medidor cadastrado e sem consumo: o contrato da internet é criado no primeiro lançamento.
+        $this->actingAs($admin)->post('/gestao/contas', ['concessionaria' => 'internet', 'valor' => '120,00', 'consumo' => '99'])
+            ->assertSessionHas('sucesso');
+
+        $fatura = Fatura::query()->latest('id')->with('medidor', 'competencia')->firstOrFail();
+        $this->assertSame(Concessionaria::Internet, $fatura->medidor->concessionaria);
+        $this->assertNull($fatura->consumo);
+        $this->assertNull($fatura->unidade_medida);
+        $this->assertNull($fatura->competencia->leitura_prevista);
+
+        // 12000 ÷ 12 = 1000 por apartamento, sem a contribuição (já foi na energia).
+        $internet = Cobranca::query()->where('rateio_id', Rateio::query()->max('id'))->with('itens')->get();
+        $this->assertCount(12, $internet);
+        $this->assertTrue($internet->every(fn (Cobranca $c) => $c->valor_centavos === 1000 && $c->itens->pluck('tipo')->all() === ['internet']));
+        $this->assertStringEndsWith('IAP302', Cobranca::query()->whereHas('unidade', fn ($q) => $q->where('numero', '302'))->latest('id')->value('pix_txid'));
+
+        // No painel, o apto tem energia e internet em cobranças separadas e o total do mês.
+        $this->actingAs($admin)->get('/gestao')->assertInertia(fn ($page) => $page
+            ->where('contas.internet.lancada.valor', 12000)
+            ->where('cobrancas.unidades.0.numero', '401')
+            ->where('cobrancas.unidades.0.total', 3438 + 5000 + 1000)
+            ->where('cobrancas.unidades.0.cobrancas.1.tipos', ['internet'])
+            ->where('cobrancas.unidades.0.cobrancas.1.servico', 'Internet'));
+
+        $this->actingAs($admin)->post('/gestao/contas', ['concessionaria' => 'internet', 'valor' => '120,00'])->assertSessionHas('erro');
+    }
+
     public function test_marcar_paga_no_painel_entra_no_caixa_e_nao_paga_estorna(): void
     {
         $this->lancarEnergia();
