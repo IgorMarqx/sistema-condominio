@@ -279,7 +279,8 @@ export default function RevisarFatura({ fatura, pagamento }: Props) {
 }
 
 /**
- * Conta lançada à mão no painel: o PDF pode ser anexado depois, sem mexer nos valores.
+ * Conta lançada à mão no painel: o PDF ou a foto da conta pode ser anexado depois, sem mexer
+ * nos valores. Depois do envio a página recarrega com a prévia no lugar deste quadro.
  */
 function SemPdf({
     fatura,
@@ -296,14 +297,14 @@ function SemPdf({
         <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#c9d3ea] bg-white px-4 text-center text-sm text-suave">
             <span className="flex flex-col items-center">
                 <FileText className="mb-1 size-6" />
-                Fatura sem PDF anexo
+                Fatura sem PDF ou foto anexo
             </span>
             {podeAnexar && (
                 <>
                     <input
                         ref={entrada}
                         type="file"
-                        accept="application/pdf"
+                        accept="application/pdf,image/*"
                         className="hidden"
                         onChange={(e) => {
                             const arquivo = e.target.files?.[0];
@@ -314,7 +315,7 @@ function SemPdf({
                             }
 
                             router.post(
-                                `/gestao/faturas/${fatura.id}/pdf`,
+                                `/gestao/faturas/${fatura.id}/anexo`,
                                 { arquivo },
                                 {
                                     forceFormData: true,
@@ -338,7 +339,7 @@ function SemPdf({
                         onClick={() => entrada.current?.click()}
                     >
                         {!enviando && <Upload />}
-                        Anexar PDF
+                        Anexar PDF ou foto
                     </Botao>
                     {erro && <p className="text-xs text-red-600">{erro}</p>}
                 </>
@@ -359,6 +360,31 @@ function PreviaPdf({
     }
 
     const url = `/arquivos/fatura/${fatura.id}`;
+
+    if (fatura.anexo_imagem) {
+        return (
+            <div className="overflow-hidden rounded-2xl border border-linha bg-white lg:sticky lg:top-6">
+                <div className="flex items-center justify-between border-b border-linha px-4 py-2 text-xs font-bold text-suave">
+                    Foto da fatura
+                    <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-marinho-700"
+                    >
+                        <Maximize2 className="size-3.5" /> Tela cheia
+                    </a>
+                </div>
+                <a href={url} target="_blank" rel="noreferrer">
+                    <img
+                        src={url}
+                        alt="Foto da fatura"
+                        className="max-h-[70vh] w-full bg-[#f7f8fb] object-contain"
+                    />
+                </a>
+            </div>
+        );
+    }
 
     return (
         <div className="lg:sticky lg:top-6">
