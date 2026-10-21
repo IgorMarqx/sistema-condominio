@@ -49,7 +49,8 @@ class CaixaService
             throw new RegraNegocio('O valor do lançamento precisa ser maior que zero.');
         }
 
-        if ($comprovante === null) {
+        // Exceção única: o recebimento de cobrança que o síndico marca como pago no painel.
+        if ($comprovante === null && $origemTipo !== 'pagamento') {
             throw new RegraNegocio('Todo lançamento precisa de comprovante.');
         }
 
@@ -67,8 +68,8 @@ class CaixaService
                 'valor_centavos' => $valorCentavos,
                 'categoria' => $categoria,
                 'descricao' => $descricao,
-                'comprovante_s3' => $arquivo['caminho'],
-                'comprovante_sha256' => $arquivo['sha256'],
+                'comprovante_s3' => $arquivo['caminho'] ?? null,
+                'comprovante_sha256' => $arquivo['sha256'] ?? null,
                 'origem_tipo' => $origemTipo,
                 'origem_id' => $origemId,
                 'grupo' => $grupo,
