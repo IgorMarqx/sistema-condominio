@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Gestao;
 use App\Http\Controllers\Controller;
 use App\Services\Auditoria\Auditoria;
 use App\Services\Configuracoes;
-use App\Support\Dinheiro;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -25,7 +24,6 @@ class ConfiguracoesController extends Controller
         $dados = $request->validate([
             'nome_edificio' => ['required', 'string', 'max:80'],
             'endereco' => ['nullable', 'string', 'max:160'],
-            'contribuicao' => ['required', 'string'],
             'dias_antecedencia' => ['required', 'integer', 'min:0', 'max:25'],
             'pix_chave' => ['nullable', 'string', 'max:77'],
             'pix_recebedor' => ['nullable', 'string', 'max:60'],
@@ -37,7 +35,6 @@ class ConfiguracoesController extends Controller
         $novos = [
             'nome_edificio' => $dados['nome_edificio'],
             'endereco' => $dados['endereco'],
-            'contribuicao_centavos' => Dinheiro::paraCentavos($dados['contribuicao']),
             'dias_antecedencia' => (int) $dados['dias_antecedencia'],
             'pix_chave' => $dados['pix_chave'],
             'pix_recebedor' => $dados['pix_recebedor'],
