@@ -283,6 +283,24 @@ class RateioCobrancaTest extends TestCase
         $this->assertSame('quitada', $e->competencia->status->value);
     }
 
+    public function test_conta_do_condominio_paga_sem_comprovante(): void
+    {
+        [, $a] = $this->faturasConfirmadas();
+
+        $this->actingAs($this->sindico())->post("/gestao/faturas/{$a->id}/pagar", ['data' => '2026-10-12'])
+            ->assertSessionHas('sucesso');
+
+        $lancamento = LancamentoCaixa::query()->where('origem_tipo', 'fatura')->where('origem_id', $a->id)->firstOrFail();
+        $this->assertNull($lancamento->comprovante_s3);
+        $this->assertSame(-23810, app(CaixaService::class)->saldo());
+
+        // Lançamento manual continua exigindo comprovante.
+        $this->actingAs($this->sindico())->post('/gestao/caixa/lancamentos', [
+            'conta' => 'corrente', 'data' => '2026-10-12', 'tipo' => 'saida', 'valor' => '10,00',
+            'categoria' => 'manutencao', 'descricao' => 'Lâmpada',
+        ])->assertSessionHasErrors('comprovante');
+    }
+
     public function test_correcao_na_revisao_fica_auditada_com_motivo(): void
     {
         $energia = $this->medidor(null, Concessionaria::Energisa, '5/1234567-8');
