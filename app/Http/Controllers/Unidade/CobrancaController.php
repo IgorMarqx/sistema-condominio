@@ -42,7 +42,7 @@ class CobrancaController extends Controller
                     'valor' => $f->valor_centavos,
                 ])->values(),
             ] : null,
-            'historico' => Cobranca::query()->where('unidade_id', $unidadeId)->with('unidade')->orderByDesc('mes_ref')->limit(12)->get()
+            'historico' => Cobranca::query()->where('unidade_id', $unidadeId)->with(['unidade', 'itens'])->orderByDesc('mes_ref')->limit(12)->get()
                 ->map(fn (Cobranca $c) => CobrancaDados::resumo($c)),
         ]);
     }
