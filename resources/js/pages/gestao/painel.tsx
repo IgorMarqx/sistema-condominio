@@ -1,17 +1,42 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import {
-    Calculator,
+    Check,
     ChevronRight,
     CreditCard,
     FileText,
-    Inbox,
     Lock,
     Plus,
+    Upload,
 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import Botao from '@/components/condominio/botao';
 import Cartao, { TituloSecao } from '@/components/condominio/cartao';
-import { diaMes, dinheiro } from '@/lib/formato';
+import { Campo, Entrada } from '@/components/condominio/campo';
+import Folha from '@/components/condominio/folha';
+import IconeServico from '@/components/condominio/icone-servico';
+import Selo from '@/components/condominio/selo';
+import { diaMes, dinheiro, lerCentavos } from '@/lib/formato';
 import { cn } from '@/lib/utils';
-import type { Fatura, StatusCobranca } from '@/types';
+import type {
+    Cobranca,
+    ConcessionariaId,
+    Fatura,
+    StatusCobranca,
+} from '@/types';
+
+type Conta = {
+    medidor_id: number | null;
+    unidade_medida: string;
+    lancada: { valor: number | null; consumo: string | null } | null;
+};
+
+type UnidadePainel = {
+    numero: string;
+    andar: number;
+    status: StatusCobranca | null;
+    vencida: boolean;
+    cobrancas: (Cobranca & { em_aberto: number })[];
+};
 
 type Props = {
     resumo: {
@@ -27,22 +52,26 @@ type Props = {
             aptos: string[];
             mes: string | null;
         };
-        emails_revisao: number;
-        faturas_para_ratear: number;
         fechamento: { mes: string; mes_rotulo: string } | null;
+    };
+    contas: {
+        mes_nome: string;
+        ocupados: string[];
+        contribuicao: number;
+        energisa: Conta;
+        cagepa: Conta;
     };
     cobrancas: {
         mes: string;
         mes_nome: string;
-        vencimento: string;
-        unidades: {
-            numero: string;
-            andar: number;
-            status: StatusCobranca | null;
-            vencida: boolean;
-            valor: number | null;
-        }[];
+        vencimento: string | null;
+        unidades: UnidadePainel[];
     } | null;
+};
+
+const NOMES: Record<ConcessionariaId, { rotulo: string; servico: string }> = {
+    energisa: { rotulo: 'Energisa', servico: 'energia' },
+    cagepa: { rotulo: 'Cagepa', servico: 'água' },
 };
 
 function iniciais(nome: string): string {
@@ -60,16 +89,24 @@ function listaAptos(aptos: string[]): string {
         : `${aptos.slice(0, -1).join(', ')} e ${aptos.at(-1)}`;
 }
 
-export default function Painel({ resumo, pendencias, cobrancas }: Props) {
+export default function Painel({
+    resumo,
+    pendencias,
+    contas,
+    cobrancas,
+}: Props) {
     const { auth } = usePage().props;
     const user = auth.user!;
     const podeEditar = user.pode_editar;
+    const [lancar, setLancar] = useState<ConcessionariaId | null>(null);
+    const [apto, setApto] = useState<string | null>(null);
     const semPendencias =
         pendencias.faturas.length === 0 &&
         pendencias.comprovantes.quantidade === 0 &&
-        pendencias.emails_revisao === 0 &&
-        pendencias.faturas_para_ratear === 0 &&
         !pendencias.fechamento;
+    // Lido das props a cada visita: depois de marcar paga, o modal já mostra o estado novo.
+    const unidadeAberta =
+        cobrancas?.unidades.find((u) => u.numero === apto) ?? null;
 
     return (
         <>
@@ -111,6 +148,29 @@ export default function Painel({ resumo, pendencias, cobrancas }: Props) {
             </header>
 
             <div className="mt-4 space-y-5 px-4 lg:px-0">
+                {podeEditar && (
+                    <section>
+                        <TituloSecao>Contas de {contas.mes_nome}</TituloSecao>
+                        <div className="grid grid-cols-2 gap-2">
+                            {(['energisa', 'cagepa'] as const).map((c) => (
+                                <BotaoConta
+                                    key={c}
+                                    concessionaria={c}
+                                    conta={contas[c]}
+                                    aoAbrir={() => setLancar(c)}
+                                />
+                            ))}
+                            {(['energisa', 'cagepa'] as const).map((c) => (
+                                <BotaoImportar
+                                    key={c}
+                                    concessionaria={c}
+                                    medidorId={contas[c].medidor_id}
+                                />
+                            ))}
+                        </div>
+                    </section>
+                )}
+
                 <section>
                     <TituloSecao>Pendências</TituloSecao>
                     <Cartao className="divide-y divide-linha py-1">
@@ -126,7 +186,7 @@ export default function Painel({ resumo, pendencias, cobrancas }: Props) {
                                 icone={<FileText className="size-[18px]" />}
                                 cor="bg-orange-100 text-orange-600"
                                 titulo={`${f.status === 'pendente_revisao' ? 'Revisar' : 'Conferir'} fatura ${f.concessionaria_rotulo} do condomínio`}
-                                apoio={`Chegou ${f.origem === 'email' ? 'por e-mail' : 'por upload'} · ${dinheiro(f.valor)}`}
+                                apoio={`Importada do PDF · ${dinheiro(f.valor)}`}
                             />
                         ))}
                         {pendencias.comprovantes.quantidade > 0 && (
@@ -136,24 +196,6 @@ export default function Painel({ resumo, pendencias, cobrancas }: Props) {
                                 cor="bg-sky-100 text-sky-700"
                                 titulo={`Confirmar ${pendencias.comprovantes.quantidade} comprovante${pendencias.comprovantes.quantidade > 1 ? 's' : ''}`}
                                 apoio={`${pendencias.comprovantes.aptos.length > 1 ? 'Aptos' : 'Apto'} ${listaAptos(pendencias.comprovantes.aptos)}`}
-                            />
-                        )}
-                        {pendencias.emails_revisao > 0 && (
-                            <Pendencia
-                                href="/gestao/faturas?aba=emails"
-                                icone={<Inbox className="size-[18px]" />}
-                                cor="bg-orange-100 text-orange-600"
-                                titulo={`${pendencias.emails_revisao} e-mail${pendencias.emails_revisao > 1 ? 's' : ''} do condomínio para revisar`}
-                                apoio="Sem PDF, PDF com senha ou medidor desconhecido"
-                            />
-                        )}
-                        {pendencias.faturas_para_ratear > 0 && (
-                            <Pendencia
-                                href="/gestao/rateio"
-                                icone={<Calculator className="size-[18px]" />}
-                                cor="bg-ouro-100 text-[#8a6100]"
-                                titulo="Gerar o rateio"
-                                apoio={`${pendencias.faturas_para_ratear} fatura${pendencias.faturas_para_ratear > 1 ? 's' : ''} confirmada${pendencias.faturas_para_ratear > 1 ? 's' : ''} fora de rateio`}
                             />
                         )}
                         {pendencias.fechamento && (
@@ -171,18 +213,23 @@ export default function Painel({ resumo, pendencias, cobrancas }: Props) {
                 {cobrancas && (
                     <section>
                         <TituloSecao
-                            acao={`vence ${diaMes(cobrancas.vencimento)}`}
+                            acao={
+                                cobrancas.vencimento &&
+                                `vence ${diaMes(cobrancas.vencimento)}`
+                            }
                         >
                             Cobranças de {cobrancas.mes_nome}
                         </TituloSecao>
                         <Cartao>
                             <div className="grid grid-cols-3 gap-2">
                                 {cobrancas.unidades.map((u) => (
-                                    <Link
+                                    <button
                                         key={u.numero}
-                                        href={`/gestao/cobrancas?mes=${cobrancas.mes}#apto-${u.numero}`}
+                                        type="button"
+                                        onClick={() => setApto(u.numero)}
+                                        disabled={u.cobrancas.length === 0}
                                         className={cn(
-                                            'rounded-xl px-2 py-2.5 text-center',
+                                            'rounded-xl px-2 py-2.5 text-center transition active:scale-[0.97] disabled:active:scale-100',
                                             corBloco(u.status, u.vencida),
                                         )}
                                     >
@@ -192,7 +239,7 @@ export default function Painel({ resumo, pendencias, cobrancas }: Props) {
                                         <p className="text-[11px] font-bold">
                                             {rotuloBloco(u.status, u.vencida)}
                                         </p>
-                                    </Link>
+                                    </button>
                                 ))}
                             </div>
                         </Cartao>
@@ -200,16 +247,11 @@ export default function Painel({ resumo, pendencias, cobrancas }: Props) {
                 )}
 
                 {podeEditar && (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                         <Atalho
                             href="/gestao/caixa?novo=lancamento"
                             icone={<Plus className="size-5" />}
                             rotulo="Lançamento"
-                        />
-                        <Atalho
-                            href="/gestao/rateio"
-                            icone={<Calculator className="size-5" />}
-                            rotulo="Gerar rateio"
                         />
                         <Atalho
                             href="/gestao/fechamento"
@@ -220,8 +262,406 @@ export default function Painel({ resumo, pendencias, cobrancas }: Props) {
                     </div>
                 )}
             </div>
+
+            <LancarConta
+                concessionaria={lancar}
+                contas={contas}
+                aoFechar={() => setLancar(null)}
+            />
+            <PagamentoUnidade
+                unidade={unidadeAberta}
+                mesNome={cobrancas?.mes_nome ?? ''}
+                podeEditar={podeEditar}
+                aoFechar={() => setApto(null)}
+            />
         </>
     );
+}
+
+function BotaoConta({
+    concessionaria,
+    conta,
+    aoAbrir,
+}: {
+    concessionaria: ConcessionariaId;
+    conta: Conta;
+    aoAbrir: () => void;
+}) {
+    const lancada = conta.lancada;
+
+    return (
+        <button
+            type="button"
+            onClick={aoAbrir}
+            disabled={lancada !== null}
+            className="flex min-w-0 items-center gap-2.5 rounded-2xl border border-linha bg-white p-3 text-left active:scale-[0.98] disabled:active:scale-100"
+        >
+            <IconeServico concessionaria={concessionaria} />
+            <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1 text-sm font-extrabold">
+                    {NOMES[concessionaria].rotulo}
+                    {lancada && (
+                        <Check className="size-3.5 shrink-0 text-emerald-600" />
+                    )}
+                </span>
+                <span className="block text-xs leading-snug text-suave">
+                    {lancada ? (
+                        <>
+                            <span className="tabular block">
+                                {dinheiro(lancada.valor)}
+                            </span>
+                            {lancada.consumo &&
+                                `${lancada.consumo} ${conta.unidade_medida}`}
+                        </>
+                    ) : (
+                        'Lançar valor'
+                    )}
+                </span>
+            </span>
+        </button>
+    );
+}
+
+/**
+ * Abre o seletor de PDF direto; a fatura importada vai para a tela de conferência e, ao ser
+ * confirmada, gera as cobranças.
+ */
+function BotaoImportar({
+    concessionaria,
+    medidorId,
+}: {
+    concessionaria: ConcessionariaId;
+    medidorId: number | null;
+}) {
+    const entrada = useRef<HTMLInputElement>(null);
+    const [enviando, setEnviando] = useState(false);
+
+    return (
+        <>
+            <input
+                ref={entrada}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                    const arquivo = e.target.files?.[0];
+                    e.target.value = '';
+
+                    if (!arquivo || !medidorId) {
+                        return;
+                    }
+
+                    router.post(
+                        '/gestao/faturas/upload',
+                        { arquivo, medidor_id: medidorId },
+                        {
+                            forceFormData: true,
+                            onStart: () => setEnviando(true),
+                            onFinish: () => setEnviando(false),
+                        },
+                    );
+                }}
+            />
+            <Botao
+                tom="branco"
+                tamanho="sm"
+                carregando={enviando}
+                disabled={!medidorId}
+                aria-label={`Importar PDF da conta de ${NOMES[concessionaria].servico}`}
+                onClick={() => entrada.current?.click()}
+            >
+                {!enviando && <Upload />}
+                Importar PDF
+            </Botao>
+        </>
+    );
+}
+
+/**
+ * Divisão igual em centavos, com o resto de 1 centavo para as primeiras unidades na ordem
+ * fixa (101, 102…), como o servidor faz.
+ */
+function dividir(total: number, unidades: string[]): Map<string, number> {
+    const n = unidades.length;
+    const base = Math.floor(total / n);
+    const resto = total - base * n;
+
+    return new Map(unidades.map((u, i) => [u, base + (i < resto ? 1 : 0)]));
+}
+
+function LancarConta({
+    concessionaria,
+    contas,
+    aoFechar,
+}: {
+    concessionaria: ConcessionariaId | null;
+    contas: Props['contas'];
+    aoFechar: () => void;
+}) {
+    const form = useForm({ valor: '', consumo: '' });
+    // Mantém o último nome enquanto a folha anima ao fechar.
+    const [ultima, setUltima] = useState<ConcessionariaId>('energisa');
+
+    if (concessionaria && concessionaria !== ultima) {
+        setUltima(concessionaria);
+    }
+
+    const atual = concessionaria ?? ultima;
+    const unidade = contas[atual].unidade_medida;
+    const total = lerCentavos(form.data.valor) ?? 0;
+    const ocupados = contas.ocupados;
+    const divisao =
+        total > 0 && ocupados.length > 0 ? dividir(total, ocupados) : null;
+    const valores = divisao ? [...new Set(divisao.values())] : [];
+
+    const fechar = () => {
+        form.reset();
+        form.clearErrors();
+        aoFechar();
+    };
+
+    return (
+        <Folha
+            aberta={concessionaria !== null}
+            aoMudar={(aberta) => !aberta && fechar()}
+            titulo={`Conta da ${NOMES[atual].rotulo}`}
+            descricao={`${contas.mes_nome} · dividida igualmente entre os ${ocupados.length} apartamentos ocupados`}
+            rodape={
+                <Botao
+                    largo
+                    tamanho="lg"
+                    carregando={form.processing}
+                    disabled={total <= 0}
+                    onClick={() => {
+                        form.transform((dados) => ({
+                            ...dados,
+                            concessionaria: atual,
+                        }));
+                        form.post('/gestao/contas', {
+                            preserveScroll: true,
+                            onSuccess: fechar,
+                        });
+                    }}
+                >
+                    Lançar e gerar cobranças
+                </Botao>
+            }
+        >
+            <div className="space-y-4 pb-1">
+                <div className="grid grid-cols-2 gap-3">
+                    <Campo rotulo="Valor (R$)" erro={form.errors.valor}>
+                        <Entrada
+                            inputMode="decimal"
+                            enterKeyHint="next"
+                            placeholder="0,00"
+                            value={form.data.valor}
+                            onChange={(e) =>
+                                form.setData('valor', e.target.value)
+                            }
+                        />
+                    </Campo>
+                    <Campo
+                        rotulo={`Consumo (${unidade})`}
+                        erro={form.errors.consumo}
+                    >
+                        <Entrada
+                            inputMode="decimal"
+                            enterKeyHint="done"
+                            placeholder={atual === 'energisa' ? '512' : '28'}
+                            value={form.data.consumo}
+                            onChange={(e) =>
+                                form.setData('consumo', e.target.value)
+                            }
+                        />
+                    </Campo>
+                </div>
+
+                {divisao ? (
+                    <div className="space-y-3 rounded-2xl bg-marinho-50 p-3.5">
+                        <div className="flex items-end justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-semibold text-suave">
+                                    Cada apartamento
+                                </p>
+                                <p className="tabular text-2xl font-extrabold text-texto">
+                                    {valores.length > 1
+                                        ? `${dinheiro(Math.min(...valores))} a ${dinheiro(Math.max(...valores))}`
+                                        : dinheiro(valores[0])}
+                                </p>
+                            </div>
+                            <p className="tabular text-right text-xs text-suave">
+                                {dinheiro(total)} ÷ {ocupados.length}
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                            {ocupados.map((u) => (
+                                <div
+                                    key={u}
+                                    className="rounded-lg bg-white px-2 py-1.5 text-center"
+                                >
+                                    <p className="text-xs font-extrabold">
+                                        {u}
+                                    </p>
+                                    <p className="tabular text-[11px] text-suave">
+                                        {dinheiro(divisao.get(u))}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                        {contas.contribuicao > 0 && (
+                            <p className="text-xs text-suave">
+                                Primeira conta do mês: cada apartamento paga
+                                também {dinheiro(contas.contribuicao)} de
+                                contribuição ao caixa.
+                            </p>
+                        )}
+                    </div>
+                ) : (
+                    <p className="text-sm text-suave">
+                        Digite o valor para ver quanto fica para cada
+                        apartamento.
+                    </p>
+                )}
+            </div>
+        </Folha>
+    );
+}
+
+function PagamentoUnidade({
+    unidade,
+    mesNome,
+    podeEditar,
+    aoFechar,
+}: {
+    unidade: UnidadePainel | null;
+    mesNome: string;
+    podeEditar: boolean;
+    aoFechar: () => void;
+}) {
+    const [enviando, setEnviando] = useState<string | null>(null);
+    const [ultima, setUltima] = useState<UnidadePainel | null>(null);
+
+    if (unidade && unidade !== ultima) {
+        setUltima(unidade);
+    }
+
+    const atual = unidade ?? ultima;
+
+    const marcar = (cobranca: number, acao: 'paga' | 'nao-paga') =>
+        router.post(
+            `/gestao/cobrancas/${cobranca}/${acao}`,
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setEnviando(`${cobranca}:${acao}`),
+                onFinish: () => setEnviando(null),
+            },
+        );
+
+    return (
+        <Folha
+            aberta={unidade !== null}
+            aoMudar={(aberta) => !aberta && aoFechar()}
+            titulo={`Apto ${atual?.numero ?? ''}`}
+            descricao={
+                podeEditar
+                    ? `Cobranças de ${mesNome}. Foi pago?`
+                    : `Cobranças de ${mesNome}`
+            }
+        >
+            <div className="space-y-2.5 pb-2">
+                {atual?.cobrancas.map((c) => {
+                    const paga = c.status === 'paga';
+                    const aberta = c.status === 'aberta';
+
+                    return (
+                        <div
+                            key={c.id}
+                            className="space-y-3 rounded-2xl border border-linha p-3.5"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-extrabold">
+                                        {c.servico}
+                                    </p>
+                                    <p className="tabular text-xs text-suave">
+                                        {dinheiro(c.valor)} · vence{' '}
+                                        {diaMes(c.vencimento)}
+                                        {c.em_aberto > 0 &&
+                                            c.em_aberto < c.valor &&
+                                            ` · falta ${dinheiro(c.em_aberto)}`}
+                                    </p>
+                                </div>
+                                <SeloStatus
+                                    status={c.status}
+                                    vencida={c.vencida}
+                                />
+                            </div>
+
+                            {c.status === 'aguardando_confirmacao' && (
+                                <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                                    A unidade enviou o comprovante. Confira no
+                                    extrato antes de marcar como pago.
+                                </p>
+                            )}
+
+                            {podeEditar && (
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Botao
+                                        tom={aberta ? 'marinho' : 'branco'}
+                                        tamanho="sm"
+                                        // Selecionado: travado, mas com a cor cheia (não parece desabilitado).
+                                        className="disabled:opacity-100"
+                                        disabled={aberta}
+                                        carregando={
+                                            enviando === `${c.id}:nao-paga`
+                                        }
+                                        onClick={() => marcar(c.id, 'nao-paga')}
+                                    >
+                                        Não pago
+                                    </Botao>
+                                    <Botao
+                                        tom={paga ? 'marinho' : 'ouro'}
+                                        tamanho="sm"
+                                        className="disabled:opacity-100"
+                                        disabled={paga}
+                                        carregando={enviando === `${c.id}:paga`}
+                                        onClick={() => marcar(c.id, 'paga')}
+                                    >
+                                        {paga && <Check />}
+                                        Pago
+                                    </Botao>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+                {podeEditar && (
+                    <p className="px-1 text-xs text-suave">
+                        "Pago" lança a entrada no caixa com a data de hoje. "Não
+                        pago" estorna o recebimento.
+                    </p>
+                )}
+            </div>
+        </Folha>
+    );
+}
+
+function SeloStatus({
+    status,
+    vencida,
+}: {
+    status: StatusCobranca;
+    vencida: boolean;
+}) {
+    if (status === 'paga') return <Selo tom="pago">Paga</Selo>;
+    if (status === 'aguardando_confirmacao')
+        return <Selo tom="conferir">Conferir</Selo>;
+    if (status === 'aberta' && vencida)
+        return <Selo tom="atrasado">Vencida</Selo>;
+    if (status === 'aberta') return <Selo tom="aberto">Aberta</Selo>;
+
+    return <Selo>{status}</Selo>;
 }
 
 function corBloco(status: StatusCobranca | null, vencida: boolean): string {
