@@ -9,6 +9,7 @@ import TelaEntrada, {
     CabecalhoEntrada,
 } from '@/components/condominio/tela-entrada';
 import { Checkbox } from '@/components/ui/checkbox';
+import { traduzirErroPasskey } from '@/lib/passkeys';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -16,23 +17,27 @@ type Props = {
     apartamentos: string[][];
     lembrado: { apto: string; andar: number; nome: string | null } | null;
     entradaPorBiometria: boolean;
+    biometriaGestao: { nome: string; papel: string } | null;
     status?: string;
 };
 
-type Tela = 'biometria' | 'bemvindo' | 'grade';
+type Tela = 'biometria' | 'biometria-gestao' | 'bemvindo' | 'grade';
 
 export default function Entrar({
     edificio,
     apartamentos,
     lembrado,
     entradaPorBiometria,
+    biometriaGestao,
 }: Props) {
     const [tela, setTela] = useState<Tela>(
-        entradaPorBiometria && lembrado
-            ? 'biometria'
-            : lembrado
-              ? 'bemvindo'
-              : 'grade',
+        biometriaGestao
+            ? 'biometria-gestao'
+            : entradaPorBiometria && lembrado
+              ? 'biometria'
+              : lembrado
+                ? 'bemvindo'
+                : 'grade',
     );
 
     const trocarApartamento = () => {
@@ -46,11 +51,35 @@ export default function Entrar({
     return (
         <>
             <Head title="Entrar" />
+            {tela === 'biometria-gestao' && biometriaGestao && (
+                <TelaBiometria
+                    edificio={edificio}
+                    titulo={`Olá, ${biometriaGestao.nome}`}
+                    apoio={`${biometriaGestao.papel} · sem código do autenticador`}
+                    // Com senha, o síndico confirma o 2FA na tela seguinte.
+                    aoUsarSenha={() => router.visit('/entrar/gestao')}
+                    trocar={{ pergunta: 'Não é você?', acao: 'Trocar conta' }}
+                    aoTrocar={() =>
+                        router.post(
+                            '/aparelho/esquecer',
+                            { gestao: true },
+                            {
+                                onSuccess: () =>
+                                    setTela(lembrado ? 'bemvindo' : 'grade'),
+                            },
+                        )
+                    }
+                />
+            )}
             {tela === 'biometria' && lembrado && (
                 <TelaBiometria
                     edificio={edificio}
-                    apto={lembrado.apto}
+                    titulo={`Apartamento ${lembrado.apto}`}
                     aoUsarSenha={() => setTela('bemvindo')}
+                    trocar={{
+                        pergunta: `Não é o ${lembrado.apto}?`,
+                        acao: 'Trocar apartamento',
+                    }}
                     aoTrocar={trocarApartamento}
                 />
             )}
@@ -74,31 +103,45 @@ function usarBiometria(aoFalhar?: () => void) {
 }
 
 /**
- * Mockup 1: só o prédio, o apartamento e o botão de biometria. O prompt abre sozinho uma vez.
+ * Mockup 1: só o prédio, quem entra e o botão de biometria. O prompt abre sozinho uma vez.
+ * Serve ao apartamento e à gestão (pela biometria a gestão entra sem o código do 2FA).
  */
 function TelaBiometria({
     edificio,
-    apto,
+    titulo,
+    apoio,
     aoUsarSenha,
+    trocar,
     aoTrocar,
 }: {
     edificio: string;
-    apto: string;
+    titulo: string;
+    apoio?: string;
     aoUsarSenha: () => void;
+    trocar: { pergunta: string; acao: string };
     aoTrocar: () => void;
 }) {
     const { verify, isLoading, isSupported, error } = usarBiometria();
     const disparado = useRef(false);
 
+    // Abre o prompt sozinho, uma vez: na montagem ou, se o app abriu em segundo plano (PWA
+    // acordando), assim que a tela ficar visível. O botão fica para tentar de novo.
     useEffect(() => {
-        if (
-            isSupported &&
-            !disparado.current &&
-            document.visibilityState === 'visible'
-        ) {
-            disparado.current = true;
-            void verify();
+        if (!isSupported) {
+            return;
         }
+
+        const disparar = () => {
+            if (!disparado.current && document.visibilityState === 'visible') {
+                disparado.current = true;
+                void verify();
+            }
+        };
+
+        disparar();
+        document.addEventListener('visibilitychange', disparar);
+
+        return () => document.removeEventListener('visibilitychange', disparar);
     }, [isSupported, verify]);
 
     return (
@@ -109,8 +152,11 @@ function TelaBiometria({
                     {edificio}
                 </p>
                 <h1 className="mt-1 text-3xl font-extrabold tracking-tight">
-                    Apartamento {apto}
+                    {titulo}
                 </h1>
+                {apoio && (
+                    <p className="mt-1.5 text-sm text-white/70">{apoio}</p>
+                )}
 
                 <Botao
                     tom="vidro"
@@ -148,9 +194,9 @@ function TelaBiometria({
                     onClick={aoTrocar}
                     className="text-xs text-white/70"
                 >
-                    Não é o {apto}?{' '}
+                    {trocar.pergunta}{' '}
                     <span className="font-semibold text-white underline-offset-2 hover:underline">
-                        Trocar apartamento
+                        {trocar.acao}
                     </span>
                 </button>
             </div>
@@ -437,16 +483,4 @@ function TelaGrade({ apartamentos }: { apartamentos: string[][] }) {
             </form>
         </TelaEntrada>
     );
-}
-
-function traduzirErroPasskey(erro: string): string {
-    if (/cancel|abort|NotAllowed|timed out|not allowed/i.test(erro)) {
-        return 'Biometria cancelada. Toque de novo ou entre com a senha.';
-    }
-
-    if (/Unable to sign in|Invalid/i.test(erro)) {
-        return 'Esta biometria não está mais válida. Entre com a senha e ative de novo.';
-    }
-
-    return erro;
 }
